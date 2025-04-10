@@ -285,16 +285,21 @@ export const BotBubble = (props: Props) => {
     ?.usedTools?.find((t) => t?.tool === 'product_search')?.toolOutput as string | undefined;
   let products: { pageContent: string; price_pro: number; price: number; name: string; url: string; images_url: string; product_id: number }[] = [];
   if (productsString) {
-    products = JSON.parse(productsString);
-    const seenIds = new Set();
-    const uniqueData = products.filter((item) => {
-      if (!seenIds.has(item.product_id)) {
-        seenIds.add(item.product_id);
-        return true;
-      }
-      return false;
-    });
-    products = uniqueData;
+    try {
+      products = JSON.parse(productsString);
+      const seenIds = new Set();
+      const uniqueData = products.filter((item) => {
+        if (!seenIds.has(item.product_id)) {
+          seenIds.add(item.product_id);
+          return true;
+        }
+        return false;
+      });
+      products = uniqueData;
+    } catch (error) {
+      console.error('Error parsing products:', error);
+      products = [];
+    }
   }
   const getToken = () => {
     let token = null;
