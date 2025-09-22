@@ -7,6 +7,7 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "dev": "rollup --watch --config rollup.config.js",
+    "serve": "node serve.js",
     "build": "rollup --config rollup.config.js",
     "lint": "eslint \"src/**/*.ts*\"",
     "lint-fix": "eslint --fix \"src/**/*.ts*\"",
@@ -50,6 +51,7 @@
     "autoprefixer": "10.4.14",
     "babel-plugin-lodash": "^3.3.4",
     "babel-preset-solid": "1.7.1",
+    "concurrently": "^9.2.1",
     "eslint": "^8.24.0",
     "eslint-config-next": "13.2.4",
     "eslint-config-prettier": "^9.0.0",

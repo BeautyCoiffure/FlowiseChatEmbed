@@ -489,6 +489,10 @@ export const Bot = (botProps: BotProps & { class?: string }) => {
     const chatId = params.chatId;
     const input = params.question;
     params.streaming = true;
+
+    // Create empty apiMessage immediately when starting the stream
+    setMessages((prevMessages) => [...prevMessages, { message: '', type: 'apiMessage' }]);
+
     fetchEventSource(`${props.apiHost}/api/v1/prediction/${chatflowid}`, {
       openWhenHidden: true,
       method: 'POST',
@@ -500,9 +504,6 @@ export const Bot = (botProps: BotProps & { class?: string }) => {
         const payload = JSON.parse(ev.data);
         console.log(payload);
         switch (payload.event) {
-          case 'start':
-            setMessages((prevMessages) => [...prevMessages, { message: '', type: 'apiMessage' }]);
-            break;
           case 'token':
             updateLastMessage(payload.data);
             break;

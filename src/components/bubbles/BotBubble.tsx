@@ -48,6 +48,9 @@ export const BotBubble = (props: Props) => {
   const [thumbsUpColor, setThumbsUpColor] = createSignal(props.feedbackColor ?? defaultFeedbackColor); // default color
   const [thumbsDownColor, setThumbsDownColor] = createSignal(props.feedbackColor ?? defaultFeedbackColor); // default color
   const [loadingStates, setLoadingStates] = createSignal<{ [key: number]: 'idle' | 'loading' | 'success' }>({});
+  const [products, setProducts] = createSignal<
+    { pageContent: string; price_pro: number; price: number; name: string; url: string; images_url: string; product_id: number }[]
+  >([]);
 
   const downloadFile = async (fileAnnotation: any) => {
     try {
@@ -198,20 +201,57 @@ export const BotBubble = (props: Props) => {
   };
 
   onMount(() => {
-    if (botMessageEl) {
+    if (props.message.rating) {
+      setRating(props.message.rating);
+      if (props.message.rating === 'THUMBS_UP') {
+        setThumbsUpColor('#006400');
+      } else if (props.message.rating === 'THUMBS_DOWN') {
+        setThumbsDownColor('#8B0000');
+      }
+    }
+
+    if (botDetailsEl && props.isLoading) {
+      botDetailsEl.open = true;
+    }
+  });
+
+  // Create effect to update message content when props.message changes
+  createEffect(() => {
+    // Process products data
+    let productsString = props.message.usedTools?.find((t) => t?.tool === 'product_search')?.toolOutput as string | undefined;
+
+    if (productsString) {
+      try {
+        const parsedProducts = JSON.parse(productsString);
+        const seenIds = new Set();
+        const uniqueData = parsedProducts.filter((item: any) => {
+          if (!seenIds.has(item.product_id)) {
+            seenIds.add(item.product_id);
+            return true;
+          }
+          return false;
+        });
+        setProducts(uniqueData);
+      } catch (error) {
+        console.error('Error parsing products:', error);
+        setProducts([]);
+      }
+    } else {
+      setProducts([]);
+    }
+
+    if (botMessageEl && props.message.message) {
       botMessageEl.innerHTML = Marked.parse(props.message.message);
       botMessageEl.querySelectorAll('a').forEach((link) => {
         link.target = '_blank';
       });
-      if (props.message.rating) {
-        setRating(props.message.rating);
-        if (props.message.rating === 'THUMBS_UP') {
-          setThumbsUpColor('#006400');
-        } else if (props.message.rating === 'THUMBS_DOWN') {
-          setThumbsDownColor('#8B0000');
-        }
-      }
+
+      // Handle file annotations
       if (props.fileAnnotations && props.fileAnnotations.length) {
+        // Clear existing buttons first
+        const existingButtons = botMessageEl.querySelectorAll('.file-annotation-button');
+        existingButtons.forEach((button) => button.remove());
+
         for (const annotations of props.fileAnnotations) {
           const button = document.createElement('button');
           button.textContent = annotations.fileName;
@@ -228,10 +268,6 @@ export const BotBubble = (props: Props) => {
           botMessageEl.appendChild(button);
         }
       }
-    }
-
-    if (botDetailsEl && props.isLoading) {
-      botDetailsEl.open = true;
     }
   });
 
@@ -280,27 +316,7 @@ export const BotBubble = (props: Props) => {
       );
     }
   };
-  let productsString = props.message.agentReasoning
-    ?.find((a) => a.agentName?.includes('Shopping'))
-    ?.usedTools?.find((t) => t?.tool === 'product_search')?.toolOutput as string | undefined;
-  let products: { pageContent: string; price_pro: number; price: number; name: string; url: string; images_url: string; product_id: number }[] = [];
-  if (productsString) {
-    try {
-      products = JSON.parse(productsString);
-      const seenIds = new Set();
-      const uniqueData = products.filter((item) => {
-        if (!seenIds.has(item.product_id)) {
-          seenIds.add(item.product_id);
-          return true;
-        }
-        return false;
-      });
-      products = uniqueData;
-    } catch (error) {
-      console.error('Error parsing products:', error);
-      products = [];
-    }
-  }
+  // Products will be processed in createEffect
   const getToken = () => {
     let token = null;
     // @ts-ignore
@@ -366,7 +382,7 @@ export const BotBubble = (props: Props) => {
         }, 3000);
 
         // Send GTM event with chatbot information
-        const product = products.find((p) => p.product_id === productId);
+        const product = products().find((p) => p.product_id === productId);
         if (product) {
           //@ts-ignore
           window.dataLayer = window.dataLayer || [];
@@ -448,12 +464,12 @@ export const BotBubble = (props: Props) => {
 
   return (
     <div>
-      {products.length > 0 && (
+      {products().length > 0 && (
         <div class="px-4 py-2  ml-2 scrollbar max-w-full prose relative">
           <div class="relative">
             <div class="overflow-x-auto products-container" style="scroll-behavior: smooth;">
               <div class="flex space-x-4 pb-4 w-max">
-                <For each={products}>
+                <For each={products()}>
                   {(product) => (
                     <div
                       class="flex-shrink-0 w-36 sm:w-40 md:w-48 border rounded-lg p-2 hover:border-[#e71e62] cursor-pointer flex flex-col justify-between"
