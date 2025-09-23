@@ -281,6 +281,211 @@ export const BotBubble = (props: Props) => {
     }
   });
 
+  // Extract products from artifacts and other sources
+  createEffect(() => {
+    // Reset products when message changes to allow new searches
+    setProducts([]);
+    
+    const extractedProducts: { pageContent: string; price_pro: number; price: number; name: string; url: string; images_url: string; product_id: number }[] = [];
+    
+    
+    // Extract from artifacts
+    if (props.message.artifacts && props.message.artifacts.length > 0) {
+      props.message.artifacts.forEach((artifact) => {
+        if (artifact && artifact.data) {
+          try {
+            // Try to parse the artifact data as JSON
+            const data = typeof artifact.data === 'string' ? JSON.parse(artifact.data) : artifact.data;
+            
+            // Check if it's an array of products
+            if (Array.isArray(data)) {
+              data.forEach((item) => {
+                if (item && typeof item === 'object' && item.product_id && item.name) {
+                  extractedProducts.push({
+                    pageContent: item.pageContent || '',
+                    price_pro: item.price_pro || item.price || 0,
+                    price: item.price || 0,
+                    name: item.name || '',
+                    url: item.url || '',
+                    images_url: Array.isArray(item.images_url) ? item.images_url : [item.images_url || ''],
+                    product_id: item.product_id || 0
+                  });
+                }
+              });
+            }
+            // Check if it's a single product object
+            else if (data && typeof data === 'object' && data.product_id && data.name) {
+              extractedProducts.push({
+                pageContent: data.pageContent || '',
+                price_pro: data.price_pro || data.price || 0,
+                price: data.price || 0,
+                name: data.name || '',
+                url: data.url || '',
+                images_url: Array.isArray(data.images_url) ? data.images_url : [data.images_url || ''],
+                product_id: data.product_id || 0
+              });
+            }
+          } catch (error) {
+          }
+        }
+      });
+    }
+    
+    // Extract from sourceDocuments (in case products are stored there)
+    if (props.message.sourceDocuments && props.message.sourceDocuments.length > 0 && extractedProducts.length === 0) {
+      props.message.sourceDocuments.forEach((doc: any) => {
+        if (doc && doc.pageContent) {
+          try {
+            // Try to parse pageContent as JSON
+            const data = typeof doc.pageContent === 'string' ? JSON.parse(doc.pageContent) : doc.pageContent;
+            
+            if (Array.isArray(data)) {
+              data.forEach((item) => {
+                if (item && typeof item === 'object' && item.product_id && item.name) {
+                  extractedProducts.push({
+                    pageContent: item.pageContent || '',
+                    price_pro: item.price_pro || item.price || 0,
+                    price: item.price || 0,
+                    name: item.name || '',
+                    url: item.url || '',
+                    images_url: Array.isArray(item.images_url) ? item.images_url : [item.images_url || ''],
+                    product_id: item.product_id || 0
+                  });
+                }
+              });
+            }
+            else if (data && typeof data === 'object' && data.product_id && data.name) {
+              extractedProducts.push({
+                pageContent: data.pageContent || '',
+                price_pro: data.price_pro || data.price || 0,
+                price: data.price || 0,
+                name: data.name || '',
+                url: data.url || '',
+                images_url: Array.isArray(data.images_url) ? data.images_url : [data.images_url || ''],
+                product_id: data.product_id || 0
+              });
+            }
+          } catch (error) {
+            // If pageContent is not JSON, it might contain product info in text format
+            // This is a fallback - you might need to adjust based on your data format
+          }
+        }
+      });
+    }
+    
+    // Extract from usedTools (where product search results are likely stored)
+    if (props.message.usedTools && props.message.usedTools.length > 0 && extractedProducts.length === 0) {
+      props.message.usedTools.forEach((tool: any) => {
+        
+        // Try different possible data structures in the tool
+        const possibleDataSources = [
+          tool?.toolOutput,
+          tool?.output,
+          tool?.result,
+          tool?.data,
+          tool?.response,
+          tool?.content
+        ];
+        
+        possibleDataSources.forEach((dataSource) => {
+          if (dataSource) {
+            try {
+              // Try to parse the data source as JSON
+              const data = typeof dataSource === 'string' ? JSON.parse(dataSource) : dataSource;
+              
+              // Helper function to extract products from data
+              const extractProductsFromData = (data: any) => {
+                if (Array.isArray(data)) {
+                  data.forEach((item) => {
+                    if (item && typeof item === 'object' && item.product_id && item.name) {
+                      extractedProducts.push({
+                        pageContent: item.pageContent || '',
+                        price_pro: item.price_pro || item.price || 0,
+                        price: item.price || 0,
+                        name: item.name || '',
+                        url: item.url || '',
+                        images_url: Array.isArray(item.images_url) ? item.images_url : [item.images_url || ''],
+                        product_id: item.product_id || 0
+                      });
+                    }
+                  });
+                }
+                else if (data && typeof data === 'object' && data.product_id && data.name) {
+                  extractedProducts.push({
+                    pageContent: data.pageContent || '',
+                    price_pro: data.price_pro || data.price || 0,
+                    price: data.price || 0,
+                    name: data.name || '',
+                    url: data.url || '',
+                    images_url: Array.isArray(data.images_url) ? data.images_url : [data.images_url || ''],
+                    product_id: data.product_id || 0
+                  });
+                }
+                // Check if data contains a products array or similar
+                else if (data && typeof data === 'object') {
+                  const possibleProductKeys = ['products', 'results', 'items', 'data'];
+                  possibleProductKeys.forEach((key) => {
+                    if (data[key] && Array.isArray(data[key])) {
+                      extractProductsFromData(data[key]);
+                    }
+                  });
+                }
+              };
+              
+              extractProductsFromData(data);
+            } catch (error) {
+              // Error parsing usedTools data source
+            }
+          }
+        });
+      });
+    }
+    
+    // Extract from agentFlowExecutedData (another possible source)
+    if (props.message.agentFlowExecutedData && props.message.agentFlowExecutedData.length > 0 && extractedProducts.length === 0) {
+      props.message.agentFlowExecutedData.forEach((flowData: any) => {
+        if (flowData && flowData.data) {
+          try {
+            const data = typeof flowData.data === 'string' ? JSON.parse(flowData.data) : flowData.data;
+            
+            if (Array.isArray(data)) {
+              data.forEach((item) => {
+                if (item && typeof item === 'object' && item.product_id && item.name) {
+                  extractedProducts.push({
+                    pageContent: item.pageContent || '',
+                    price_pro: item.price_pro || item.price || 0,
+                    price: item.price || 0,
+                    name: item.name || '',
+                    url: item.url || '',
+                    images_url: Array.isArray(item.images_url) ? item.images_url : [item.images_url || ''],
+                    product_id: item.product_id || 0
+                  });
+                }
+              });
+            }
+            else if (data && typeof data === 'object' && data.product_id && data.name) {
+              extractedProducts.push({
+                pageContent: data.pageContent || '',
+                price_pro: data.price_pro || data.price || 0,
+                price: data.price || 0,
+                name: data.name || '',
+                url: data.url || '',
+                images_url: Array.isArray(data.images_url) ? data.images_url : [data.images_url || ''],
+                product_id: data.product_id || 0
+              });
+            }
+          } catch (error) {
+            // Error parsing agentFlowExecutedData
+          }
+        }
+      });
+    }
+    
+    if (extractedProducts.length > 0) {
+      setProducts(extractedProducts);
+    }
+  });
+
   const renderArtifacts = (item: Partial<FileUpload>) => {
     // Instead of onMount, we'll use a callback ref to apply styles
     const setArtifactRef = (el: HTMLSpanElement) => {
@@ -608,162 +813,164 @@ export const BotBubble = (props: Props) => {
           <Avatar initialAvatarSrc={props.avatarSrc} />
         </Show>
         <div class="flex flex-col  w-full justify-start">
-        <div class="flex flex-col justify-start">
-          {props.showAgentMessages &&
-            props.message.agentFlowExecutedData &&
-            Array.isArray(props.message.agentFlowExecutedData) &&
-            props.message.agentFlowExecutedData.length > 0 && (
-              <div>
-                <WorkflowTreeView workflowData={props.message.agentFlowExecutedData} indentationLevel={24} />
+          <div class="flex flex-col justify-start">
+            {props.showAgentMessages &&
+              props.message.agentFlowExecutedData &&
+              Array.isArray(props.message.agentFlowExecutedData) &&
+              props.message.agentFlowExecutedData.length > 0 && (
+                <div>
+                  <WorkflowTreeView workflowData={props.message.agentFlowExecutedData} indentationLevel={24} />
+                </div>
+              )}
+            {props.showAgentMessages && props.message.agentReasoning && (
+              <details ref={botDetailsEl} class="mb-2 px-4 py-2 ml-2 chatbot-host-bubble rounded-[6px]">
+                <summary class="cursor-pointer">
+                  <span class="italic">Agent Messages</span>
+                </summary>
+                <br />
+                <For each={props.message.agentReasoning}>
+                  {(agent) => {
+                    const agentMessages = agent.messages ?? [];
+                    let msgContent = agent.instructions || (agentMessages.length > 1 ? agentMessages.join('\\n') : agentMessages[0]);
+                    if (agentMessages.length === 0 && !agent.instructions) msgContent = `<p>Finished</p>`;
+                    return (
+                      <AgentReasoningBubble
+                        agentName={agent.agentName ?? ''}
+                        agentMessage={msgContent}
+                        agentArtifacts={agent.artifacts}
+                        backgroundColor={props.backgroundColor}
+                        textColor={props.textColor}
+                        fontSize={props.fontSize}
+                        apiHost={props.apiHost}
+                        chatflowid={props.chatflowid}
+                        chatId={props.chatId}
+                        renderHTML={props.renderHTML}
+                      />
+                    );
+                  }}
+                </For>
+              </details>
+            )}
+            {props.message.artifacts && props.message.artifacts.length > 0 && (
+              <div class="flex flex-row items-start flex-wrap w-full gap-2">
+                <For each={props.message.artifacts}>
+                  {(item) => {
+                    return item !== null ? <>{renderArtifacts(item)}</> : null;
+                  }}
+                </For>
               </div>
             )}
-          {props.showAgentMessages && props.message.agentReasoning && (
-            <details ref={botDetailsEl} class="mb-2 px-4 py-2 ml-2 chatbot-host-bubble rounded-[6px]">
-              <summary class="cursor-pointer">
-                <span class="italic">Agent Messages</span>
-              </summary>
-              <br />
-              <For each={props.message.agentReasoning}>
-                {(agent) => {
-                  const agentMessages = agent.messages ?? [];
-                  let msgContent = agent.instructions || (agentMessages.length > 1 ? agentMessages.join('\\n') : agentMessages[0]);
-                  if (agentMessages.length === 0 && !agent.instructions) msgContent = `<p>Finished</p>`;
-                  return (
-                    <AgentReasoningBubble
-                      agentName={agent.agentName ?? ''}
-                      agentMessage={msgContent}
-                      agentArtifacts={agent.artifacts}
-                      backgroundColor={props.backgroundColor}
-                      textColor={props.textColor}
-                      fontSize={props.fontSize}
-                      apiHost={props.apiHost}
-                      chatflowid={props.chatflowid}
-                      chatId={props.chatId}
-                      renderHTML={props.renderHTML}
-                    />
-                  );
-                }}
-              </For>
-            </details>
-          )}
-          {props.message.artifacts && props.message.artifacts.length > 0 && (
-            <div class="flex flex-row items-start flex-wrap w-full gap-2">
-              <For each={props.message.artifacts}>
-                {(item) => {
-                  return item !== null ? <>{renderArtifacts(item)}</> : null;
-                }}
-              </For>
-            </div>
-          )}
 
-          {props.message.message && (
-            <span
-              ref={setBotMessageRef}
-              class="px-4 py-2 ml-2 max-w-full chatbot-host-bubble prose"
-              data-testid="host-bubble"
-              style={{
-                'background-color': props.backgroundColor ?? defaultBackgroundColor,
-                color: props.textColor ?? defaultTextColor,
-                'border-radius': '6px',
-                'font-size': props.fontSize ? `${props.fontSize}px` : `${defaultFontSize}px`,
-              }}
-            />
-          )}
-          {props.message.action && (
-            <div class="px-4 py-2 flex flex-row justify-start space-x-2">
-              <For each={props.message.action.elements || []}>
-                {(action) => {
-                  return (
-                    <>
-                      {(action.type === 'approve-button' && action.label === 'Yes') || action.type === 'agentflowv2-approve-button' ? (
-                        <button
-                          type="button"
-                          class="px-4 py-2 font-medium text-green-600 border border-green-600 rounded-full hover:bg-green-600 hover:text-white transition-colors duration-300 flex items-center space-x-2"
-                          onClick={() => props.handleActionClick(action, props.message.action)}
-                        >
-                          <TickIcon />
-                          &nbsp;
-                          {action.label}
-                        </button>
-                      ) : (action.type === 'reject-button' && action.label === 'No') || action.type === 'agentflowv2-reject-button' ? (
-                        <button
-                          type="button"
-                          class="px-4 py-2 font-medium text-red-600 border border-red-600 rounded-full hover:bg-red-600 hover:text-white transition-colors duration-300 flex items-center space-x-2"
-                          onClick={() => props.handleActionClick(action, props.message.action)}
-                        >
-                          <XIcon isCurrentColor={true} />
-                          &nbsp;
-                          {action.label}
-                        </button>
-                      ) : (
-                        <button>{action.label}</button>
-                      )}
-                    </>
-                  );
+            {props.message.message && (
+              <span
+                ref={setBotMessageRef}
+                class="px-4 py-2 ml-2 max-w-full chatbot-host-bubble prose"
+                data-testid="host-bubble"
+                style={{
+                  'background-color': props.backgroundColor ?? defaultBackgroundColor,
+                  color: props.textColor ?? defaultTextColor,
+                  'border-radius': '6px',
+                  'font-size': props.fontSize ? `${props.fontSize}px` : `${defaultFontSize}px`,
                 }}
-              </For>
-            </div>
+              />
+            )}
+            {props.message.action && (
+              <div class="px-4 py-2 flex flex-row justify-start space-x-2">
+                <For each={props.message.action.elements || []}>
+                  {(action) => {
+                    return (
+                      <>
+                        {(action.type === 'approve-button' && action.label === 'Yes') || action.type === 'agentflowv2-approve-button' ? (
+                          <button
+                            type="button"
+                            class="px-4 py-2 font-medium text-green-600 border border-green-600 rounded-full hover:bg-green-600 hover:text-white transition-colors duration-300 flex items-center space-x-2"
+                            onClick={() => props.handleActionClick(action, props.message.action)}
+                          >
+                            <TickIcon />
+                            &nbsp;
+                            {action.label}
+                          </button>
+                        ) : (action.type === 'reject-button' && action.label === 'No') || action.type === 'agentflowv2-reject-button' ? (
+                          <button
+                            type="button"
+                            class="px-4 py-2 font-medium text-red-600 border border-red-600 rounded-full hover:bg-red-600 hover:text-white transition-colors duration-300 flex items-center space-x-2"
+                            onClick={() => props.handleActionClick(action, props.message.action)}
+                          >
+                            <XIcon isCurrentColor={true} />
+                            &nbsp;
+                            {action.label}
+                          </button>
+                        ) : (
+                          <button>{action.label}</button>
+                        )}
+                      </>
+                    );
+                  }}
+                </For>
+              </div>
+            )}
+          </div>
+        </div>
+        <div>
+          {props.message.sourceDocuments && props.message.sourceDocuments.length && (
+            <>
+              <Show when={props.sourceDocsTitle}>
+                <span class="px-2 py-[10px] font-semibold">{props.sourceDocsTitle}</span>
+              </Show>
+              <div style={{ display: 'flex', 'flex-direction': 'row', width: '100%', 'flex-wrap': 'wrap' }}>
+                <For each={[...removeDuplicateURL(props.message)]}>
+                  {(src) => {
+                    const URL = isValidURL(src.metadata.source);
+                    return (
+                      <SourceBubble
+                        pageContent={URL ? URL.pathname : src.pageContent}
+                        metadata={src.metadata}
+                        onSourceClick={() => {
+                          if (URL) {
+                            window.open(src.metadata.source, '_blank');
+                          } else {
+                            props.handleSourceDocumentsClick(src);
+                          }
+                        }}
+                      />
+                    );
+                  }}
+                </For>
+              </div>
+            </>
+          )}
+        </div>
+        <div>
+          {props.chatFeedbackStatus && props.message.messageId && (
+            <>
+              <div class={`flex items-center px-2 pb-2 ${props.showAvatar ? 'ml-10' : ''}`}>
+                <CopyToClipboardButton feedbackColor={props.feedbackColor} onClick={() => copyMessageToClipboard()} />
+                <Show when={copiedMessage()}>
+                  <div class="copied-message" style={{ color: props.feedbackColor ?? defaultFeedbackColor }}>
+                    Copied!
+                  </div>
+                </Show>
+                {rating() === '' || rating() === 'THUMBS_UP' ? (
+                  <ThumbsUpButton feedbackColor={thumbsUpColor()} isDisabled={rating() === 'THUMBS_UP'} rating={rating()} onClick={onThumbsUpClick} />
+                ) : null}
+                {rating() === '' || rating() === 'THUMBS_DOWN' ? (
+                  <ThumbsDownButton
+                    feedbackColor={thumbsDownColor()}
+                    isDisabled={rating() === 'THUMBS_DOWN'}
+                    rating={rating()}
+                    onClick={onThumbsDownClick}
+                  />
+                ) : null}
+                <Show when={props.message.dateTime}>
+                  <div class="text-sm text-gray-500 ml-2">
+                    {formatDateTime(props.message.dateTime, props?.dateTimeToggle?.date, props?.dateTimeToggle?.time)}
+                  </div>
+                </Show>
+              </div>
+            </>
           )}
         </div>
       </div>
-      <div>
-        {props.message.sourceDocuments && props.message.sourceDocuments.length && (
-          <>
-            <Show when={props.sourceDocsTitle}>
-              <span class="px-2 py-[10px] font-semibold">{props.sourceDocsTitle}</span>
-            </Show>
-            <div style={{ display: 'flex', 'flex-direction': 'row', width: '100%', 'flex-wrap': 'wrap' }}>
-              <For each={[...removeDuplicateURL(props.message)]}>
-                {(src) => {
-                  const URL = isValidURL(src.metadata.source);
-                  return (
-                    <SourceBubble
-                      pageContent={URL ? URL.pathname : src.pageContent}
-                      metadata={src.metadata}
-                      onSourceClick={() => {
-                        if (URL) {
-                          window.open(src.metadata.source, '_blank');
-                        } else {
-                          props.handleSourceDocumentsClick(src);
-                        }
-                      }}
-                    />
-                  );
-                }}
-              </For>
-            </div>
-          </>
-        )}
-      </div>
-      <div>
-        {props.chatFeedbackStatus && props.message.messageId && (
-          <>
-            <div class={`flex items-center px-2 pb-2 ${props.showAvatar ? 'ml-10' : ''}`}>
-              <CopyToClipboardButton feedbackColor={props.feedbackColor} onClick={() => copyMessageToClipboard()} />
-              <Show when={copiedMessage()}>
-                <div class="copied-message" style={{ color: props.feedbackColor ?? defaultFeedbackColor }}>
-                  Copied!
-                </div>
-              </Show>
-              {rating() === '' || rating() === 'THUMBS_UP' ? (
-                <ThumbsUpButton feedbackColor={thumbsUpColor()} isDisabled={rating() === 'THUMBS_UP'} rating={rating()} onClick={onThumbsUpClick} />
-              ) : null}
-              {rating() === '' || rating() === 'THUMBS_DOWN' ? (
-                <ThumbsDownButton
-                  feedbackColor={thumbsDownColor()}
-                  isDisabled={rating() === 'THUMBS_DOWN'}
-                  rating={rating()}
-                  onClick={onThumbsDownClick}
-                />
-              ) : null}
-              <Show when={props.message.dateTime}>
-                <div class="text-sm text-gray-500 ml-2">
-                  {formatDateTime(props.message.dateTime, props?.dateTimeToggle?.date, props?.dateTimeToggle?.time)}
-                </div>
-              </Show>
-            </div>
-          </>
-        )}
-      </div>
     </div>
-    </div>
+  );
+};
