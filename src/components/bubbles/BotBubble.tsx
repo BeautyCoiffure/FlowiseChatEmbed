@@ -8,6 +8,9 @@ import FeedbackContentDialog from '../FeedbackContentDialog';
 import { AgentReasoningBubble } from './AgentReasoningBubble';
 import { TickIcon, XIcon } from '../icons';
 import { SourceBubble } from '../bubbles/SourceBubble';
+import { DateTimeToggleTheme } from '@/features/bubble/types';
+// type Propimport { DateTimeToggleTheme } from '@/features/bubble/types';
+import { WorkflowTreeView } from '../treeview/WorkflowTreeView';
 
 type Props = {
   message: MessageType;
@@ -24,9 +27,11 @@ type Props = {
   fontSize?: number;
   feedbackColor?: string;
   isLoading: boolean;
+  dateTimeToggle?: DateTimeToggleTheme;
   showAgentMessages?: boolean;
   sourceDocsTitle?: string;
-  handleActionClick: (label: string, action: IAction | undefined | null) => void;
+  renderHTML?: boolean;
+  handleActionClick: (elem: any, action: IAction | undefined | null) => void;
   handleSourceDocumentsClick: (src: any) => void;
 };
 
@@ -35,11 +40,10 @@ const defaultTextColor = '#303235';
 const defaultFontSize = 16;
 const defaultFeedbackColor = '#3B81F6';
 
-Marked.setOptions({ isNoP: true, sanitize: true });
-
 export const BotBubble = (props: Props) => {
-  let botMessageEl: HTMLDivElement | undefined;
   let botDetailsEl: HTMLDetailsElement | undefined;
+
+  Marked.setOptions({ isNoP: true, sanitize: props.renderHTML !== undefined ? !props.renderHTML : true });
 
   const [rating, setRating] = createSignal('');
   const [feedbackId, setFeedbackId] = createSignal('');
@@ -51,6 +55,69 @@ export const BotBubble = (props: Props) => {
   const [products, setProducts] = createSignal<
     { pageContent: string; price_pro: number; price: number; name: string; url: string; images_url: string; product_id: number }[]
   >([]);
+
+  // Store a reference to the bot message element for the copyMessageToClipboard function
+  const [botMessageElement, setBotMessageElement] = createSignal<HTMLElement | null>(null);
+
+  const setBotMessageRef = (el: HTMLSpanElement) => {
+    if (el) {
+      el.innerHTML = Marked.parse(props.message.message);
+
+      // Apply textColor to all links, headings, and other markdown elements except code
+      const textColor = props.textColor ?? defaultTextColor;
+      el.querySelectorAll('a, h1, h2, h3, h4, h5, h6, strong, em, blockquote, li').forEach((element) => {
+        (element as HTMLElement).style.color = textColor;
+      });
+
+      // Code blocks (with pre) get white text
+      el.querySelectorAll('pre').forEach((element) => {
+        (element as HTMLElement).style.color = '#FFFFFF';
+        // Also ensure any code elements inside pre have white text
+        element.querySelectorAll('code').forEach((codeElement) => {
+          (codeElement as HTMLElement).style.color = '#FFFFFF';
+        });
+      });
+
+      // Inline code (not in pre) gets green text
+      el.querySelectorAll('code:not(pre code)').forEach((element) => {
+        (element as HTMLElement).style.color = '#4CAF50'; // Green color
+      });
+
+      // Set target="_blank" for links
+      el.querySelectorAll('a').forEach((link) => {
+        link.target = '_blank';
+      });
+
+      // Store the element ref for the copy function
+      setBotMessageElement(el);
+
+      if (props.message.rating) {
+        setRating(props.message.rating);
+        if (props.message.rating === 'THUMBS_UP') {
+          setThumbsUpColor('#006400');
+        } else if (props.message.rating === 'THUMBS_DOWN') {
+          setThumbsDownColor('#8B0000');
+        }
+      }
+      if (props.fileAnnotations && props.fileAnnotations.length) {
+        for (const annotations of props.fileAnnotations) {
+          const button = document.createElement('button');
+          button.textContent = annotations.fileName;
+          button.className =
+            'py-2 px-4 mb-2 justify-center font-semibold text-white focus:outline-none flex items-center disabled:opacity-50 disabled:cursor-not-allowed disabled:brightness-100 transition-all filter hover:brightness-90 active:brightness-75 file-annotation-button';
+          button.addEventListener('click', function () {
+            downloadFile(annotations);
+          });
+          const svgContainer = document.createElement('div');
+          svgContainer.className = 'ml-2';
+          svgContainer.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-download" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="#ffffff" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2" /><path d="M7 11l5 5l5 -5" /><path d="M12 4l0 12" /></svg>`;
+
+          button.appendChild(svgContainer);
+          el.appendChild(button);
+        }
+      }
+    }
+  };
 
   const downloadFile = async (fileAnnotation: any) => {
     try {
@@ -74,7 +141,7 @@ export const BotBubble = (props: Props) => {
 
   const copyMessageToClipboard = async () => {
     try {
-      const text = botMessageEl ? botMessageEl?.textContent : '';
+      const text = botMessageElement() ? botMessageElement()?.textContent : '';
       await navigator.clipboard.writeText(text || '');
       setCopiedMessage(true);
       setTimeout(() => {
@@ -201,73 +268,8 @@ export const BotBubble = (props: Props) => {
   };
 
   onMount(() => {
-    if (props.message.rating) {
-      setRating(props.message.rating);
-      if (props.message.rating === 'THUMBS_UP') {
-        setThumbsUpColor('#006400');
-      } else if (props.message.rating === 'THUMBS_DOWN') {
-        setThumbsDownColor('#8B0000');
-      }
-    }
-
     if (botDetailsEl && props.isLoading) {
       botDetailsEl.open = true;
-    }
-  });
-
-  // Create effect to update message content when props.message changes
-  createEffect(() => {
-    // Process products data
-    let productsString = props.message.usedTools?.find((t) => t?.tool === 'product_search')?.toolOutput as string | undefined;
-
-    if (productsString) {
-      try {
-        const parsedProducts = JSON.parse(productsString);
-        const seenIds = new Set();
-        const uniqueData = parsedProducts.filter((item: any) => {
-          if (!seenIds.has(item.product_id)) {
-            seenIds.add(item.product_id);
-            return true;
-          }
-          return false;
-        });
-        setProducts(uniqueData);
-      } catch (error) {
-        console.error('Error parsing products:', error);
-        setProducts([]);
-      }
-    } else {
-      setProducts([]);
-    }
-
-    if (botMessageEl && props.message.message) {
-      botMessageEl.innerHTML = Marked.parse(props.message.message);
-      botMessageEl.querySelectorAll('a').forEach((link) => {
-        link.target = '_blank';
-      });
-
-      // Handle file annotations
-      if (props.fileAnnotations && props.fileAnnotations.length) {
-        // Clear existing buttons first
-        const existingButtons = botMessageEl.querySelectorAll('.file-annotation-button');
-        existingButtons.forEach((button) => button.remove());
-
-        for (const annotations of props.fileAnnotations) {
-          const button = document.createElement('button');
-          button.textContent = annotations.fileName;
-          button.className =
-            'py-2 px-4 mb-2 justify-center font-semibold text-white focus:outline-none flex items-center disabled:opacity-50 disabled:cursor-not-allowed disabled:brightness-100 transition-all filter hover:brightness-90 active:brightness-75 file-annotation-button';
-          button.addEventListener('click', function () {
-            downloadFile(annotations);
-          });
-          const svgContainer = document.createElement('div');
-          svgContainer.className = 'ml-2';
-          svgContainer.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-download" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="#ffffff" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2" /><path d="M7 11l5 5l5 -5" /><path d="M12 4l0 12" /></svg>`;
-
-          button.appendChild(svgContainer);
-          botMessageEl.appendChild(button);
-        }
-      }
     }
   });
 
@@ -280,40 +282,114 @@ export const BotBubble = (props: Props) => {
   });
 
   const renderArtifacts = (item: Partial<FileUpload>) => {
-    if (item.type === 'png' || item.type === 'jpeg') {
-      let src = item.data as string;
-      if (src.startsWith('FILE-STORAGE::')) {
-        src = `${props.apiHost}/api/v1/get-upload-file?chatflowId=${props.chatflowid}&chatId=${props.chatId}&fileName=${src.replace(
-          'FILE-STORAGE::',
-          '',
-        )}`;
+    // Instead of onMount, we'll use a callback ref to apply styles
+    const setArtifactRef = (el: HTMLSpanElement) => {
+      if (el) {
+        const textColor = props.textColor ?? defaultTextColor;
+        // Apply textColor to all elements except code blocks
+        el.querySelectorAll('a, h1, h2, h3, h4, h5, h6, strong, em, blockquote, li').forEach((element) => {
+          (element as HTMLElement).style.color = textColor;
+        });
+
+        // Code blocks (with pre) get white text
+        el.querySelectorAll('pre').forEach((element) => {
+          (element as HTMLElement).style.color = '#FFFFFF';
+          // Also ensure any code elements inside pre have white text
+          element.querySelectorAll('code').forEach((codeElement) => {
+            (codeElement as HTMLElement).style.color = '#FFFFFF';
+          });
+        });
+
+        // Inline code (not in pre) gets green text
+        el.querySelectorAll('code:not(pre code)').forEach((element) => {
+          (element as HTMLElement).style.color = '#4CAF50'; // Green color
+        });
+
+        el.querySelectorAll('a').forEach((link) => {
+          link.target = '_blank';
+        });
       }
-      return (
-        <div class="flex items-center justify-center p-0 m-0">
-          <img class="w-full h-full bg-cover" src={src} />
-        </div>
-      );
-    } else if (item.type === 'html') {
-      const src = item.data as string;
-      return (
-        <div class="mt-2">
-          <div innerHTML={src} />
-        </div>
-      );
-    } else {
-      const src = item.data as string;
-      return (
-        <span
-          innerHTML={Marked.parse(src)}
-          class="prose"
-          style={{
-            'background-color': props.backgroundColor ?? defaultBackgroundColor,
-            color: props.textColor ?? defaultTextColor,
-            'border-radius': '6px',
-            'font-size': props.fontSize ? `${props.fontSize}px` : `${defaultFontSize}px`,
-          }}
-        />
-      );
+    };
+
+    return (
+      <>
+        <Show when={item.type === 'png' || item.type === 'jpeg'}>
+          <div class="flex items-center justify-center p-0 m-0">
+            <img
+              class="w-full h-full bg-cover"
+              src={(() => {
+                const isFileStorage = typeof item.data === 'string' && item.data.startsWith('FILE-STORAGE::');
+                return isFileStorage
+                  ? `${props.apiHost}/api/v1/get-upload-file?chatflowId=${props.chatflowid}&chatId=${props.chatId}&fileName=${(
+                      item.data as string
+                    ).replace('FILE-STORAGE::', '')}`
+                  : (item.data as string);
+              })()}
+            />
+          </div>
+        </Show>
+        <Show when={item.type === 'html'}>
+          <div class="mt-2">
+            <div innerHTML={item.data as string} />
+          </div>
+        </Show>
+        <Show when={item.type !== 'png' && item.type !== 'jpeg' && item.type !== 'html'}>
+          <span
+            ref={setArtifactRef}
+            innerHTML={Marked.parse(item.data as string)}
+            class="prose"
+            style={{
+              'background-color': props.backgroundColor ?? defaultBackgroundColor,
+              color: props.textColor ?? defaultTextColor,
+              'border-radius': '6px',
+              'font-size': props.fontSize ? `${props.fontSize}px` : `${defaultFontSize}px`,
+            }}
+          />
+        </Show>
+      </>
+    );
+  };
+
+  const formatDateTime = (dateTimeString: string | undefined, showDate: boolean | undefined, showTime: boolean | undefined) => {
+    if (!dateTimeString) return '';
+
+    try {
+      const date = new Date(dateTimeString);
+
+      // Check if the date is valid
+      if (isNaN(date.getTime())) {
+        console.error('Invalid ISO date string:', dateTimeString);
+        return '';
+      }
+
+      let formatted = '';
+
+      if (showDate) {
+        const dateFormatter = new Intl.DateTimeFormat('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        });
+        const [{ value: month }, , { value: day }, , { value: year }] = dateFormatter.formatToParts(date);
+        formatted = `${month.charAt(0).toUpperCase() + month.slice(1)} ${day}, ${year}`;
+      }
+
+      if (showTime) {
+        const timeFormatter = new Intl.DateTimeFormat('en-US', {
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true,
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        });
+        const timeString = timeFormatter.format(date).toLowerCase();
+        formatted = formatted ? `${formatted}, ${timeString}` : timeString;
+      }
+
+      return formatted;
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return '';
     }
   };
   // Products will be processed in createEffect
@@ -461,7 +537,6 @@ export const BotBubble = (props: Props) => {
   };
 
   // Example usage
-
   return (
     <div>
       {products().length > 0 && (
@@ -533,6 +608,15 @@ export const BotBubble = (props: Props) => {
           <Avatar initialAvatarSrc={props.avatarSrc} />
         </Show>
         <div class="flex flex-col  w-full justify-start">
+        <div class="flex flex-col justify-start">
+          {props.showAgentMessages &&
+            props.message.agentFlowExecutedData &&
+            Array.isArray(props.message.agentFlowExecutedData) &&
+            props.message.agentFlowExecutedData.length > 0 && (
+              <div>
+                <WorkflowTreeView workflowData={props.message.agentFlowExecutedData} indentationLevel={24} />
+              </div>
+            )}
           {props.showAgentMessages && props.message.agentReasoning && (
             <details ref={botDetailsEl} class="mb-2 px-4 py-2 ml-2 chatbot-host-bubble rounded-[6px]">
               <summary class="cursor-pointer">
@@ -555,6 +639,7 @@ export const BotBubble = (props: Props) => {
                       apiHost={props.apiHost}
                       chatflowid={props.chatflowid}
                       chatId={props.chatId}
+                      renderHTML={props.renderHTML}
                     />
                   );
                 }}
@@ -573,7 +658,7 @@ export const BotBubble = (props: Props) => {
 
           {props.message.message && (
             <span
-              ref={botMessageEl}
+              ref={setBotMessageRef}
               class="px-4 py-2 ml-2 max-w-full chatbot-host-bubble prose"
               data-testid="host-bubble"
               style={{
@@ -590,21 +675,21 @@ export const BotBubble = (props: Props) => {
                 {(action) => {
                   return (
                     <>
-                      {action.type === 'approve-button' ? (
+                      {(action.type === 'approve-button' && action.label === 'Yes') || action.type === 'agentflowv2-approve-button' ? (
                         <button
                           type="button"
                           class="px-4 py-2 font-medium text-green-600 border border-green-600 rounded-full hover:bg-green-600 hover:text-white transition-colors duration-300 flex items-center space-x-2"
-                          onClick={() => props.handleActionClick(action.label, props.message.action)}
+                          onClick={() => props.handleActionClick(action, props.message.action)}
                         >
                           <TickIcon />
                           &nbsp;
                           {action.label}
                         </button>
-                      ) : action.type === 'reject-button' ? (
+                      ) : (action.type === 'reject-button' && action.label === 'No') || action.type === 'agentflowv2-reject-button' ? (
                         <button
                           type="button"
                           class="px-4 py-2 font-medium text-red-600 border border-red-600 rounded-full hover:bg-red-600 hover:text-white transition-colors duration-300 flex items-center space-x-2"
-                          onClick={() => props.handleActionClick(action.label, props.message.action)}
+                          onClick={() => props.handleActionClick(action, props.message.action)}
                         >
                           <XIcon isCurrentColor={true} />
                           &nbsp;
@@ -671,19 +756,14 @@ export const BotBubble = (props: Props) => {
                   onClick={onThumbsDownClick}
                 />
               ) : null}
+              <Show when={props.message.dateTime}>
+                <div class="text-sm text-gray-500 ml-2">
+                  {formatDateTime(props.message.dateTime, props?.dateTimeToggle?.date, props?.dateTimeToggle?.time)}
+                </div>
+              </Show>
             </div>
-            <Show when={showFeedbackContentDialog()}>
-              <FeedbackContentDialog
-                isOpen={showFeedbackContentDialog()}
-                onClose={() => setShowFeedbackContentModal(false)}
-                onSubmit={submitFeedbackContent}
-                backgroundColor={props.backgroundColor}
-                textColor={props.textColor}
-              />
-            </Show>
           </>
         )}
       </div>
     </div>
-  );
-};
+    </div>

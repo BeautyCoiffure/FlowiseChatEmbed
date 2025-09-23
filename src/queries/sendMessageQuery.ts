@@ -2,7 +2,8 @@ import { FileUpload, IAction } from '@/components/Bot';
 import { sendRequest } from '@/utils/index';
 
 export type IncomingInput = {
-  question: string;
+  question?: string;
+  form?: Record<string, unknown>;
   uploads?: FileUpload[];
   overrideConfig?: Record<string, unknown>;
   socketIOClientId?: string;
@@ -10,6 +11,7 @@ export type IncomingInput = {
   fileName?: string; // Only for assistant
   leadEmail?: string;
   action?: IAction;
+  humanInput?: Record<string, unknown>;
 };
 
 type BaseRequest = {
@@ -80,6 +82,17 @@ export const sendMessageQuery = ({ chatflowid, apiHost = 'http://localhost:3000'
     method: 'POST',
     url: `${apiHost}/api/v1/prediction/${chatflowid}`,
     body,
+    onRequest: onRequest,
+  });
+
+export const createAttachmentWithFormData = ({ chatflowid, apiHost = 'http://localhost:3000', formData, onRequest }: UpsertRequest) =>
+  sendRequest({
+    method: 'POST',
+    url: `${apiHost}/api/v1/attachments/${chatflowid}/${formData.get('chatId')}`,
+    formData,
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
     onRequest: onRequest,
   });
 

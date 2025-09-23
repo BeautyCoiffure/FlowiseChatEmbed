@@ -7,25 +7,35 @@ import {
   IncomingInput,
   getChatbotConfig,
   FeedbackRatingType,
+  createAttachmentWithFormData,
 } from '@/queries/sendMessageQuery';
 import { TextInput } from './inputs/textInput';
 import { GuestBubble } from './bubbles/GuestBubble';
 import { BotBubble } from './bubbles/BotBubble';
 import { LoadingBubble } from './bubbles/LoadingBubble';
 import { StarterPromptBubble } from './bubbles/StarterPromptBubble';
-import { BotMessageTheme, FooterTheme, TextInputTheme, UserMessageTheme, FeedbackTheme, DisclaimerPopUpTheme } from '@/features/bubble/types';
+import {
+  BotMessageTheme,
+  FooterTheme,
+  TextInputTheme,
+  UserMessageTheme,
+  FeedbackTheme,
+  DisclaimerPopUpTheme,
+  DateTimeToggleTheme,
+} from '@/features/bubble/types';
 import { Badge } from './Badge';
 import { Popup, DisclaimerPopup } from '@/features/popup';
 import { Avatar } from '@/components/avatars/Avatar';
 import { DeleteButton, SendButton } from '@/components/buttons/SendButton';
 import { FilePreview } from '@/components/inputs/textInput/components/FilePreview';
-import { CircleDotIcon, TrashIcon } from './icons';
+import { CircleDotIcon, SparklesIcon, TrashIcon } from './icons';
 import { CancelButton } from './buttons/CancelButton';
 import { cancelAudioRecording, startAudioRecording, stopAudioRecording } from '@/utils/audioRecording';
 import { LeadCaptureBubble } from '@/components/bubbles/LeadCaptureBubble';
 import { removeLocalStorageChatHistory, getLocalStorageChatflow, setLocalStorageChatflow, setCookie, getCookie } from '@/utils';
 import { cloneDeep } from 'lodash';
-import { fetchEventSource } from '@microsoft/fetch-event-source';
+import { FollowUpPromptBubble } from '@/components/bubbles/FollowUpPromptBubble';
+import { fetchEventSource, EventStreamContentType } from '@microsoft/fetch-event-source';
 
 export type FileEvent<T = EventTarget> = {
   target: T;
@@ -46,7 +56,7 @@ export type UploadsConfig = {
   fileUploadSizeAndTypes: IUploadConstraits[];
   isImageUploadAllowed: boolean;
   isSpeechToTextEnabled: boolean;
-  isFileUploadAllowed: boolean;
+  isRAGFileUploadAllowed: boolean;
 };
 
 type FilePreviewData = string | ArrayBuffer;
@@ -60,6 +70,7 @@ type FilePreview = {
 };
 
 type messageType = 'apiMessage' | 'userMessage' | 'usermessagewaiting' | 'leadCaptureMessage';
+type ExecutionState = 'INPROGRESS' | 'FINISHED' | 'ERROR' | 'TERMINATED' | 'TIMEOUT' | 'STOPPED';
 
 export type IAgentReasoning = {
   agentName?: string;
@@ -73,6 +84,7 @@ export type IAgentReasoning = {
 
 export type IAction = {
   id?: string;
+  data?: any;
   elements?: Array<{
     type: string;
     label: string;
@@ -86,6 +98,14 @@ export type IAction = {
 
 export type FileUpload = Omit<FilePreview, 'preview'>;
 
+export type AgentFlowExecutedData = {
+  nodeLabel: string;
+  nodeId: string;
+  data: any;
+  previousNodeIds: string[];
+  status?: ExecutionState;
+};
+
 export type MessageType = {
   messageId?: string;
   message: string;
@@ -95,11 +115,23 @@ export type MessageType = {
   fileUploads?: Partial<FileUpload>[];
   artifacts?: Partial<FileUpload>[];
   agentReasoning?: IAgentReasoning[];
+  execution?: any;
+  agentFlowEventStatus?: string;
+  agentFlowExecutedData?: any;
   usedTools?: any[];
   action?: IAction | null;
   rating?: FeedbackRatingType;
   id?: string;
+  followUpPrompts?: string;
+  dateTime?: string;
 };
+
+type IUploads = {
+  data: FilePreviewData;
+  type: string;
+  name: string;
+  mime: string;
+}[];
 
 type observerConfigType = (accessor: string | boolean | object | MessageType[]) => void;
 export type observersConfigType = Record<'observeUserInput' | 'observeLoading' | 'observeMessages', observerConfigType>;
@@ -109,6 +141,7 @@ export type BotProps = {
   apiHost?: string;
   onRequest?: (request: RequestInit) => Promise<void>;
   chatflowConfig?: Record<string, unknown>;
+  backgroundColor?: string;
   welcomeMessage?: string;
   errorMessage?: string;
   botMessage?: BotMessageTheme;
@@ -123,15 +156,22 @@ export type BotProps = {
   showAgentMessages?: boolean;
   title?: string;
   titleAvatarSrc?: string;
+  titleTextColor?: string;
+  titleBackgroundColor?: string;
+  formBackgroundColor?: string;
+  formTextColor?: string;
   fontSize?: number;
   isFullPage?: boolean;
   footer?: FooterTheme;
   sourceDocsTitle?: string;
   observersConfig?: observersConfigType;
-  starterPrompts?: string[];
+  starterPrompts?: string[] | Record<string, { prompt: string }>;
   starterPromptFontSize?: number;
   clearChatOnReload?: boolean;
   disclaimer?: DisclaimerPopUpTheme;
+  dateTimeToggle?: DateTimeToggleTheme;
+  renderHTML?: boolean;
+  closeBot?: () => void;
 };
 
 export type LeadsConfig = {
@@ -147,7 +187,7 @@ const defaultWelcomeMessage = 'Hi there! How can I help?';
 
 /*const sourceDocuments = [
     {
-        "pageContent": "I know some are talking about “living with COVID-19”. Tonight – I say that we will never just accept living with COVID-19. \r\n\r\nWe will continue to combat the virus as we do other diseases. And because this is a virus that mutates and spreads, we will stay on guard. \r\n\r\nHere are four common sense steps as we move forward safely.  \r\n\r\nFirst, stay protected with vaccines and treatments. We know how incredibly effective vaccines are. If you’re vaccinated and boosted you have the highest degree of protection. \r\n\r\nWe will never give up on vaccinating more Americans. Now, I know parents with kids under 5 are eager to see a vaccine authorized for their children. \r\n\r\nThe scientists are working hard to get that done and we’ll be ready with plenty of vaccines when they do. \r\n\r\nWe’re also ready with anti-viral treatments. If you get COVID-19, the Pfizer pill reduces your chances of ending up in the hospital by 90%.",
+        "pageContent": "I know some are talking about "living with COVID-19". Tonight – I say that we will never just accept living with COVID-19. \r\n\r\nWe will continue to combat the virus as we do other diseases. And because this is a virus that mutates and spreads, we will stay on guard. \r\n\r\nHere are four common sense steps as we move forward safely.  \r\n\r\nFirst, stay protected with vaccines and treatments. We know how incredibly effective vaccines are. If you're vaccinated and boosted you have the highest degree of protection. \r\n\r\nWe will never give up on vaccinating more Americans. Now, I know parents with kids under 5 are eager to see a vaccine authorized for their children. \r\n\r\nThe scientists are working hard to get that done and we'll be ready with plenty of vaccines when they do. \r\n\r\nWe're also ready with anti-viral treatments. If you get COVID-19, the Pfizer pill reduces your chances of ending up in the hospital by 90%.",
         "metadata": {
           "source": "blob",
           "blobType": "",
@@ -160,7 +200,7 @@ const defaultWelcomeMessage = 'Hi there! How can I help?';
         }
     },
     {
-        "pageContent": "sistance,  and  polishing  [65].  For  instance,  AI  tools  generate\nsuggestions based on inputting keywords or topics. The tools\nanalyze  search  data,  trending  topics,  and  popular  queries  to\ncreate  fresh  content.  What’s  more,  AIGC  assists  in  writing\narticles and posting blogs on specific topics. While these tools\nmay not be able to produce high-quality content by themselves,\nthey can provide a starting point for a writer struggling with\nwriter’s block.\nH.  Cons of AIGC\nOne of the main concerns among the public is the potential\nlack  of  creativity  and  human  touch  in  AIGC.  In  addition,\nAIGC sometimes lacks a nuanced understanding of language\nand context, which may lead to inaccuracies and misinterpre-\ntations. There are also concerns about the ethics and legality\nof using AIGC, particularly when it results in issues such as\ncopyright  infringement  and  data  privacy.  In  this  section,  we\nwill discuss some of the disadvantages of AIGC (Table IV).",
+        "pageContent": "sistance,  and  polishing  [65].  For  instance,  AI  tools  generate\nsuggestions based on inputting keywords or topics. The tools\nanalyze  search  data,  trending  topics,  and  popular  queries  to\ncreate  fresh  content.  What's  more,  AIGC  assists  in  writing\narticles and posting blogs on specific topics. While these tools\nmay not be able to produce high-quality content by themselves,\nthey can provide a starting point for a writer struggling with\nwriter's block.\nH.  Cons of AIGC\nOne of the main concerns among the public is the potential\nlack  of  creativity  and  human  touch  in  AIGC.  In  addition,\nAIGC sometimes lacks a nuanced understanding of language\nand context, which may lead to inaccuracies and misinterpre-\ntations. There are also concerns about the ethics and legality\nof using AIGC, particularly when it results in issues such as\ncopyright  infringement  and  data  privacy.  In  this  section,  we\nwill discuss some of the disadvantages of AIGC (Table IV).",
         "metadata": {
           "source": "blob",
           "blobType": "",
@@ -224,6 +264,193 @@ const defaultWelcomeMessage = 'Hi there! How can I help?';
 
 const defaultBackgroundColor = '#ffffff';
 const defaultTextColor = '#303235';
+const defaultTitleBackgroundColor = '#3B81F6';
+
+/* FeedbackDialog component - for collecting user feedback */
+const FeedbackDialog = (props: {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: () => void;
+  feedbackValue: string;
+  setFeedbackValue: (value: string) => void;
+}) => {
+  return (
+    <Show when={props.isOpen}>
+      <div class="fixed inset-0 rounded-lg flex items-center justify-center backdrop-blur-sm z-50" style={{ background: 'rgba(0, 0, 0, 0.4)' }}>
+        <div class="p-6 rounded-lg shadow-lg max-w-md w-full text-center mx-4 font-sans" style={{ background: 'white', color: 'black' }}>
+          <h2 class="text-xl font-semibold mb-4 flex justify-center items-center">Your Feedback</h2>
+
+          <textarea
+            class="w-full p-2 border border-gray-300 rounded-md mb-4"
+            rows={4}
+            placeholder="Please provide your feedback..."
+            value={props.feedbackValue}
+            onInput={(e) => props.setFeedbackValue(e.target.value)}
+          />
+
+          <div class="flex justify-center space-x-4">
+            <button
+              class="font-bold py-2 px-6 rounded focus:outline-none focus:shadow-outline"
+              style={{ background: '#ef4444', color: 'white' }}
+              onClick={props.onClose}
+            >
+              Cancel
+            </button>
+            <button
+              class="font-bold py-2 px-6 rounded focus:outline-none focus:shadow-outline"
+              style={{ background: '#3b82f6', color: 'white' }}
+              onClick={props.onSubmit}
+            >
+              Submit
+            </button>
+          </div>
+        </div>
+      </div>
+    </Show>
+  );
+};
+
+/* FormInputView component - for displaying the form input */
+const FormInputView = (props: {
+  title: string;
+  description: string;
+  inputParams: any[];
+  onSubmit: (formData: object) => void;
+  parentBackgroundColor?: string;
+  backgroundColor?: string;
+  textColor?: string;
+  sendButtonColor?: string;
+  fontSize?: number;
+}) => {
+  const [formData, setFormData] = createSignal<Record<string, any>>({});
+
+  const handleInputChange = (name: string, value: any) => {
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = (e: Event) => {
+    e.preventDefault();
+    props.onSubmit(formData());
+  };
+
+  return (
+    <div
+      class="w-full h-full flex flex-col items-center justify-center px-4 py-8 rounded-lg"
+      style={{
+        'font-family': 'Poppins, sans-serif',
+        'font-size': props.fontSize ? `${props.fontSize}px` : '16px',
+        background: props.parentBackgroundColor || defaultBackgroundColor,
+        color: props.textColor || defaultTextColor,
+      }}
+    >
+      <div
+        class="w-full max-w-md bg-white shadow-lg rounded-lg overflow-hidden"
+        style={{
+          'font-family': 'Poppins, sans-serif',
+          'font-size': props.fontSize ? `${props.fontSize}px` : '16px',
+          background: props.backgroundColor || defaultBackgroundColor,
+          color: props.textColor || defaultTextColor,
+        }}
+      >
+        <div class="p-6">
+          <h2 class="text-xl font-bold mb-2">{props.title}</h2>
+          {props.description && (
+            <p class="text-gray-600 mb-6" style={{ color: props.textColor || defaultTextColor }}>
+              {props.description}
+            </p>
+          )}
+
+          <form onSubmit={handleSubmit} class="space-y-4">
+            <For each={props.inputParams}>
+              {(param) => (
+                <div class="space-y-2">
+                  <label class="block text-sm font-medium">{param.label}</label>
+
+                  {param.type === 'string' && (
+                    <input
+                      type="text"
+                      class="w-full px-3 py-2 rounded-md focus:outline-none"
+                      style={{
+                        border: '1px solid #9ca3af',
+                        'border-radius': '0.375rem',
+                      }}
+                      onFocus={(e) => (e.target.style.border = '1px solid #3b82f6')}
+                      onBlur={(e) => (e.target.style.border = '1px solid #9ca3af')}
+                      name={param.name}
+                      onInput={(e) => handleInputChange(param.name, e.target.value)}
+                      required
+                    />
+                  )}
+
+                  {param.type === 'number' && (
+                    <input
+                      type="number"
+                      class="w-full px-3 py-2 rounded-md focus:outline-none"
+                      style={{
+                        border: '1px solid #9ca3af',
+                        'border-radius': '0.375rem',
+                      }}
+                      onFocus={(e) => (e.target.style.border = '1px solid #3b82f6')}
+                      onBlur={(e) => (e.target.style.border = '1px solid #9ca3af')}
+                      name={param.name}
+                      onInput={(e) => handleInputChange(param.name, parseFloat(e.target.value))}
+                      required
+                    />
+                  )}
+
+                  {param.type === 'boolean' && (
+                    <div class="flex items-center">
+                      <input
+                        type="checkbox"
+                        class="h-4 w-4 rounded text-blue-600 focus:ring-blue-500"
+                        style={{
+                          border: '1px solid #9ca3af',
+                        }}
+                        name={param.name}
+                        onChange={(e) => handleInputChange(param.name, e.target.checked)}
+                      />
+                      <span class="ml-2">Yes</span>
+                    </div>
+                  )}
+
+                  {param.type === 'options' && (
+                    <select
+                      class="w-full px-3 py-2 rounded-md focus:outline-none"
+                      style={{
+                        border: '1px solid #9ca3af',
+                        'border-radius': '0.375rem',
+                      }}
+                      onFocus={(e) => (e.target.style.border = '1px solid #3b82f6')}
+                      onBlur={(e) => (e.target.style.border = '1px solid #9ca3af')}
+                      name={param.name}
+                      onChange={(e) => handleInputChange(param.name, e.target.value)}
+                      required
+                    >
+                      <option value="">Select an option</option>
+                      <For each={param.options}>{(option) => <option value={option.name}>{option.label}</option>}</For>
+                    </select>
+                  )}
+                </div>
+              )}
+            </For>
+
+            <div class="pt-4">
+              <button
+                type="submit"
+                class="w-full py-2 px-4 text-white font-semibold rounded-md focus:outline-none transition duration-300 ease-in-out"
+                style={{
+                  'background-color': props.sendButtonColor || '#3B81F6',
+                }}
+              >
+                Submit
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export const Bot = (botProps: BotProps & { class?: string }) => {
   // set a default value for showTitle if not set and merge with other props
@@ -247,17 +474,28 @@ export const Bot = (botProps: BotProps & { class?: string }) => {
   );
 
   const [isChatFlowAvailableToStream, setIsChatFlowAvailableToStream] = createSignal(false);
-  const [chatId, setChatId] = createSignal(
-    (props.chatflowConfig?.vars as any)?.customerId ? `${(props.chatflowConfig?.vars as any).customerId.toString()}+${uuidv4()}` : uuidv4(),
-  );
+  const [chatId, setChatId] = createSignal('');
   const [isMessageStopping, setIsMessageStopping] = createSignal(false);
   const [starterPrompts, setStarterPrompts] = createSignal<string[]>([], { equals: false });
   const [chatFeedbackStatus, setChatFeedbackStatus] = createSignal<boolean>(false);
+  const [fullFileUpload, setFullFileUpload] = createSignal<boolean>(false);
   const [uploadsConfig, setUploadsConfig] = createSignal<UploadsConfig>();
   const [leadsConfig, setLeadsConfig] = createSignal<LeadsConfig>();
   const [isLeadSaved, setIsLeadSaved] = createSignal(false);
   const [leadEmail, setLeadEmail] = createSignal('');
   const [disclaimerPopupOpen, setDisclaimerPopupOpen] = createSignal(false);
+
+  const [openFeedbackDialog, setOpenFeedbackDialog] = createSignal(false);
+  const [feedback, setFeedback] = createSignal('');
+  const [pendingActionData, setPendingActionData] = createSignal(null);
+  const [feedbackType, setFeedbackType] = createSignal('');
+
+  // start input type
+  const [startInputType, setStartInputType] = createSignal('');
+  const [formTitle, setFormTitle] = createSignal('');
+  const [formDescription, setFormDescription] = createSignal('');
+  const [formInputsData, setFormInputsData] = createSignal({});
+  const [formInputParams, setFormInputParams] = createSignal([]);
 
   // drag & drop file input
   // TODO: fix this type
@@ -269,9 +507,19 @@ export const Bot = (botProps: BotProps & { class?: string }) => {
   const [recordingNotSupported, setRecordingNotSupported] = createSignal(false);
   const [isLoadingRecording, setIsLoadingRecording] = createSignal(false);
 
+  // follow-up prompts
+  const [followUpPromptsStatus, setFollowUpPromptsStatus] = createSignal<boolean>(false);
+  const [followUpPrompts, setFollowUpPrompts] = createSignal<string[]>([]);
+
   // drag & drop
   const [isDragActive, setIsDragActive] = createSignal(false);
-  const [uploadedFiles, setUploadedFiles] = createSignal<File[]>([]);
+  const [uploadedFiles, setUploadedFiles] = createSignal<{ file: File; type: string }[]>([]);
+  const [fullFileUploadAllowedTypes, setFullFileUploadAllowedTypes] = createSignal('*');
+
+  createMemo(() => {
+    const customerId = (props.chatflowConfig?.vars as any)?.customerId;
+    setChatId(customerId ? `${customerId.toString()}+${uuidv4()}` : uuidv4());
+  });
 
   onMount(() => {
     if (botProps?.observersConfig) {
@@ -341,6 +589,7 @@ export const Bot = (botProps: BotProps & { class?: string }) => {
       if (!text) return allMessages;
       allMessages[allMessages.length - 1].message += text;
       allMessages[allMessages.length - 1].rating = undefined;
+      allMessages[allMessages.length - 1].dateTime = new Date().toISOString();
       if (!hasSoundPlayed) {
         playReceiveSound();
         hasSoundPlayed = true;
@@ -353,7 +602,7 @@ export const Bot = (botProps: BotProps & { class?: string }) => {
   const updateErrorMessage = (errorMessage: string) => {
     setMessages((prevMessages) => {
       const allMessages = [...cloneDeep(prevMessages)];
-      allMessages.push({ message: errorMessage, type: 'apiMessage' });
+      allMessages.push({ message: props.errorMessage || errorMessage, type: 'apiMessage' });
       addChatMessage(allMessages);
       return allMessages;
     });
@@ -405,6 +654,29 @@ export const Bot = (botProps: BotProps & { class?: string }) => {
     });
   };
 
+  const updateAgentFlowEvent = (event: string) => {
+    if (event === 'INPROGRESS') {
+      setMessages((prevMessages) => [...prevMessages, { message: '', type: 'apiMessage', agentFlowEventStatus: event }]);
+    } else {
+      setMessages((prevMessages) => {
+        const allMessages = [...cloneDeep(prevMessages)];
+        if (allMessages[allMessages.length - 1].type === 'userMessage') return allMessages;
+        allMessages[allMessages.length - 1].agentFlowEventStatus = event;
+        return allMessages;
+      });
+    }
+  };
+
+  const updateAgentFlowExecutedData = (agentFlowExecutedData: any) => {
+    setMessages((prevMessages) => {
+      const allMessages = [...cloneDeep(prevMessages)];
+      if (allMessages[allMessages.length - 1].type === 'userMessage') return allMessages;
+      allMessages[allMessages.length - 1].agentFlowExecutedData = agentFlowExecutedData;
+      addChatMessage(allMessages);
+      return allMessages;
+    });
+  };
+
   const updateLastMessageArtifacts = (artifacts: FileUpload[]) => {
     setMessages((prevMessages) => {
       const allMessages = [...cloneDeep(prevMessages)];
@@ -435,9 +707,13 @@ export const Bot = (botProps: BotProps & { class?: string }) => {
   };
 
   // Handle errors
-  const handleError = (message = 'Oops! There seems to be an error. Please try again.') => {
+  const handleError = (message = 'Oops! There seems to be an error. Please try again.', preventOverride?: boolean) => {
+    let errMessage = message;
+    if (!preventOverride && props.errorMessage) {
+      errMessage = props.errorMessage;
+    }
     setMessages((prevMessages) => {
-      const messages: MessageType[] = [...prevMessages, { message: props.errorMessage || message, type: 'apiMessage' }];
+      const messages: MessageType[] = [...prevMessages, { message: errMessage, type: 'apiMessage' }];
       addChatMessage(messages);
       return messages;
     });
@@ -452,6 +728,11 @@ export const Bot = (botProps: BotProps & { class?: string }) => {
   };
 
   const promptClick = (prompt: string) => {
+    handleSubmit(prompt);
+  };
+
+  const followUpPromptClick = (prompt: string) => {
+    setFollowUpPrompts([]);
     handleSubmit(prompt);
   };
 
@@ -483,6 +764,17 @@ export const Bot = (botProps: BotProps & { class?: string }) => {
         return allMessages;
       });
     }
+
+    if (data.followUpPrompts) {
+      setMessages((prevMessages) => {
+        const allMessages = [...cloneDeep(prevMessages)];
+        if (allMessages[allMessages.length - 1].type === 'userMessage') return allMessages;
+        allMessages[allMessages.length - 1].followUpPrompts = data.followUpPrompts;
+        addChatMessage(allMessages);
+        return allMessages;
+      });
+      setFollowUpPrompts(JSON.parse(data.followUpPrompts));
+    }
   };
 
   const fetchResponseFromEventStream = async (chatflowid: string, params: any) => {
@@ -499,6 +791,25 @@ export const Bot = (botProps: BotProps & { class?: string }) => {
       body: JSON.stringify(params),
       headers: {
         'Content-Type': 'application/json',
+      },
+      async onopen(response) {
+        if (response.ok && response.headers.get('content-type')?.startsWith(EventStreamContentType)) {
+          return; // everything's good
+        } else if (response.status === 429) {
+          const errMessage = (await response.text()) ?? 'Too many requests. Please try again later.';
+          handleError(errMessage, true);
+          throw new Error(errMessage);
+        } else if (response.status === 403) {
+          const errMessage = (await response.text()) ?? 'Unauthorized';
+          handleError(errMessage);
+          throw new Error(errMessage);
+        } else if (response.status === 401) {
+          const errMessage = (await response.text()) ?? 'Unauthenticated';
+          handleError(errMessage);
+          throw new Error(errMessage);
+        } else {
+          throw new Error();
+        }
       },
       async onmessage(ev) {
         const payload = JSON.parse(ev.data);
@@ -518,6 +829,12 @@ export const Bot = (botProps: BotProps & { class?: string }) => {
             break;
           case 'agentReasoning':
             updateLastMessageAgentReasoning(payload.data);
+            break;
+          case 'agentFlowEvent':
+            updateAgentFlowEvent(payload.data);
+            break;
+          case 'agentFlowExecutedData':
+            updateAgentFlowExecutedData(payload.data);
             break;
           case 'action':
             updateLastMessageAction(payload.data);
@@ -547,6 +864,7 @@ export const Bot = (botProps: BotProps & { class?: string }) => {
       onerror(err) {
         console.error('EventSource Error: ', err);
         closeResponse();
+        throw err;
       },
     });
   };
@@ -584,18 +902,103 @@ export const Bot = (botProps: BotProps & { class?: string }) => {
       window.removeEventListener('product-reco', handleProductRecoEvent);
     });
   });
+  const handleFileUploads = async (uploads: IUploads) => {
+    if (!uploadedFiles().length) return uploads;
+
+    if (fullFileUpload()) {
+      const filesWithFullUploadType = uploadedFiles().filter((file) => file.type === 'file:full');
+
+      if (filesWithFullUploadType.length > 0) {
+        const formData = new FormData();
+        for (const file of filesWithFullUploadType) {
+          formData.append('files', file.file);
+        }
+        formData.append('chatId', chatId());
+
+        const response = await createAttachmentWithFormData({
+          chatflowid: props.chatflowid,
+          apiHost: props.apiHost,
+          formData: formData,
+        });
+
+        if (!response.data) {
+          throw new Error('Unable to upload documents');
+        } else {
+          const data = response.data as any;
+          for (const extractedFileData of data) {
+            const content = extractedFileData.content;
+            const fileName = extractedFileData.name;
+
+            // find matching name in previews and replace data with content
+            const uploadIndex = uploads.findIndex((upload) => upload.name === fileName);
+            if (uploadIndex !== -1) {
+              uploads[uploadIndex] = {
+                ...uploads[uploadIndex],
+                data: content,
+                name: fileName,
+                type: 'file:full',
+              };
+            }
+          }
+        }
+      }
+    } else if (uploadsConfig()?.isRAGFileUploadAllowed) {
+      const filesWithRAGUploadType = uploadedFiles().filter((file) => file.type === 'file:rag');
+
+      if (filesWithRAGUploadType.length > 0) {
+        const formData = new FormData();
+        for (const file of filesWithRAGUploadType) {
+          formData.append('files', file.file);
+        }
+        formData.append('chatId', chatId());
+
+        const response = await upsertVectorStoreWithFormData({
+          chatflowid: props.chatflowid,
+          apiHost: props.apiHost,
+          formData: formData,
+        });
+
+        if (!response.data) {
+          throw new Error('Unable to upload documents');
+        } else {
+          // delay for vector store to be updated
+          const delay = (delayInms: number) => {
+            return new Promise((resolve) => setTimeout(resolve, delayInms));
+          };
+          await delay(2500); //TODO: check if embeddings can be retrieved using file name as metadata filter
+
+          uploads = uploads.map((upload) => {
+            return {
+              ...upload,
+              type: 'file:rag',
+            };
+          });
+        }
+      }
+    }
+    return uploads;
+  };
+
   // Handle form submission
-  const handleSubmit = async (value: string, action?: IAction | undefined | null) => {
-    if (value.trim() === '') {
+  const handleSubmit = async (value: string | object, action?: IAction | undefined | null, humanInput?: any) => {
+    if (typeof value === 'string' && value.trim() === '') {
       const containsFile = previews().filter((item) => !item.mime.startsWith('image') && item.type !== 'audio').length > 0;
       if (!previews().length || (previews().length && containsFile)) {
         return;
       }
     }
 
+    let formData = {};
+    if (typeof value === 'object') {
+      formData = value;
+      value = Object.entries(value)
+        .map(([key, value]) => `${key}: ${value}`)
+        .join('\n');
+    }
+
     setLoading(true);
 
-    const uploads = previews().map((item) => {
+    let uploads: IUploads = previews().map((item) => {
       return {
         data: item.data,
         type: item.type,
@@ -604,10 +1007,17 @@ export const Bot = (botProps: BotProps & { class?: string }) => {
       };
     });
 
+    try {
+      uploads = await handleFileUploads(uploads);
+    } catch (error) {
+      handleError('Unable to upload documents', true);
+      return;
+    }
+
     clearPreviews();
 
     setMessages((prevMessages) => {
-      const messages: MessageType[] = [...prevMessages, { message: value, type: 'userMessage', fileUploads: uploads }];
+      const messages: MessageType[] = [...prevMessages, { message: value as string, type: 'userMessage', fileUploads: uploads }];
       addChatMessage(messages);
       return messages;
     });
@@ -617,6 +1027,11 @@ export const Bot = (botProps: BotProps & { class?: string }) => {
       chatId: chatId(),
     };
 
+    if (startInputType() === 'formInput') {
+      body.form = formData;
+      delete body.question;
+    }
+
     if (uploads && uploads.length > 0) body.uploads = uploads;
 
     if (props.chatflowConfig) body.overrideConfig = props.chatflowConfig;
@@ -625,28 +1040,7 @@ export const Bot = (botProps: BotProps & { class?: string }) => {
 
     if (action) body.action = action;
 
-    if (uploadedFiles().length > 0) {
-      const formData = new FormData();
-      for (const file of uploadedFiles()) {
-        formData.append('files', file);
-      }
-      formData.append('chatId', chatId());
-
-      const response = await upsertVectorStoreWithFormData({
-        chatflowid: props.chatflowid,
-        apiHost: props.apiHost,
-        formData: formData,
-      });
-      if (!response.data) {
-        setMessages((prevMessages) => [...prevMessages, { message: 'Unable to upload documents', type: 'apiMessage' }]);
-      } else {
-        // delay for vector store to be updated
-        const delay = (delayInms: number) => {
-          return new Promise((resolve) => setTimeout(resolve, delayInms));
-        };
-        await delay(2500); //TODO: check if embeddings can be retrieved using file name as metadata filter
-      }
-    }
+    if (humanInput) body.humanInput = humanInput;
 
     if (isChatFlowAvailableToStream()) {
       fetchResponseFromEventStream(props.chatflowid, body);
@@ -679,10 +1073,12 @@ export const Bot = (botProps: BotProps & { class?: string }) => {
             usedTools: data?.usedTools,
             fileAnnotations: data?.fileAnnotations,
             agentReasoning: data?.agentReasoning,
+            agentFlowExecutedData: data?.agentFlowExecutedData,
             action: data?.action,
             artifacts: data?.artifacts,
             type: 'apiMessage' as messageType,
             feedback: null,
+            dateTime: new Date().toISOString(),
           };
           allMessages.push(newMessage);
           addChatMessage(allMessages);
@@ -734,8 +1130,31 @@ export const Bot = (botProps: BotProps & { class?: string }) => {
     }
   };
 
-  const handleActionClick = async (label: string, action: IAction | undefined | null) => {
-    setUserInput(label);
+  const onSubmitResponse = (actionData: any, feedback = '', type = '') => {
+    let fbType = feedbackType();
+    if (type) {
+      fbType = type;
+    }
+    const question = feedback ? feedback : fbType.charAt(0).toUpperCase() + fbType.slice(1);
+    handleSubmit(question, undefined, {
+      type: fbType,
+      startNodeId: actionData?.nodeId,
+      feedback,
+    });
+  };
+
+  const handleSubmitFeedback = () => {
+    if (pendingActionData()) {
+      onSubmitResponse(pendingActionData(), feedback());
+      setOpenFeedbackDialog(false);
+      setFeedback('');
+      setPendingActionData(null);
+      setFeedbackType('');
+    }
+  };
+
+  const handleActionClick = async (elem: any, action: IAction | undefined | null) => {
+    setUserInput(elem.label);
     setMessages((data) => {
       const updated = data.map((item, i) => {
         if (i === data.length - 1) {
@@ -746,7 +1165,19 @@ export const Bot = (botProps: BotProps & { class?: string }) => {
       addChatMessage(updated);
       return [...updated];
     });
-    handleSubmit(label, action);
+    if (elem.type.includes('agentflowv2')) {
+      const type = elem.type.includes('approve') ? 'proceed' : 'reject';
+      setFeedbackType(type);
+
+      if (action && action.data && action.data.input && action.data.input.humanInputEnableFeedback) {
+        setPendingActionData(action.data);
+        setOpenFeedbackDialog(true);
+      } else if (action) {
+        onSubmitResponse(action.data, '', type);
+      }
+    } else {
+      handleSubmit(elem.label, action);
+    }
   };
 
   const clearChat = () => {
@@ -783,9 +1214,18 @@ export const Bot = (botProps: BotProps & { class?: string }) => {
   });
 
   createEffect(() => {
-    if (props.starterPrompts && props.starterPrompts.length > 0) {
-      const prompts = Object.values(props.starterPrompts).map((prompt) => prompt);
+    if (props.starterPrompts) {
+      let prompts: string[];
 
+      if (Array.isArray(props.starterPrompts)) {
+        // If starterPrompts is an array
+        prompts = props.starterPrompts;
+      } else {
+        // If starterPrompts is a JSON object
+        prompts = Object.values(props.starterPrompts).map((promptObj: { prompt: string }) => promptObj.prompt);
+      }
+
+      // Filter out any empty prompts
       return setStarterPrompts(prompts.filter((prompt) => prompt !== ''));
     }
   });
@@ -833,6 +1273,7 @@ export const Bot = (botProps: BotProps & { class?: string }) => {
                 message: message.message,
                 type: message.type,
                 rating: message.rating,
+                dateTime: message.dateTime,
               };
               if (message.sourceDocuments) chatHistory.sourceDocuments = message.sourceDocuments;
               if (message.fileAnnotations) chatHistory.fileAnnotations = message.fileAnnotations;
@@ -840,6 +1281,13 @@ export const Bot = (botProps: BotProps & { class?: string }) => {
               if (message.agentReasoning) chatHistory.agentReasoning = message.agentReasoning;
               if (message.action) chatHistory.action = message.action;
               if (message.artifacts) chatHistory.artifacts = message.artifacts;
+              if (message.followUpPrompts) chatHistory.followUpPrompts = message.followUpPrompts;
+              if (message.execution && message.execution.executionData)
+                chatHistory.agentFlowExecutedData =
+                  typeof message.execution.executionData === 'string' ? JSON.parse(message.execution.executionData) : message.execution.executionData;
+              if (message.agentFlowExecutedData)
+                chatHistory.agentFlowExecutedData =
+                  typeof message.agentFlowExecutedData === 'string' ? JSON.parse(message.agentFlowExecutedData) : message.agentFlowExecutedData;
               return chatHistory;
             })
           : [{ message: props.welcomeMessage ?? defaultWelcomeMessage, type: 'apiMessage' }];
@@ -868,6 +1316,66 @@ export const Bot = (botProps: BotProps & { class?: string }) => {
 
     if (result.data) {
       const chatbotConfig = result.data;
+
+      if (chatbotConfig.flowData) {
+        const nodes = JSON.parse(chatbotConfig.flowData).nodes ?? [];
+        const startNode = nodes.find((node: any) => node.data.name === 'startAgentflow');
+        if (startNode) {
+          const startInputType = startNode.data.inputs?.startInputType;
+          setStartInputType(startInputType);
+
+          const formInputTypes = startNode.data.inputs?.formInputTypes;
+          /* example:
+          "formInputTypes": [
+              {
+                "type": "string",
+                "label": "From",
+                "name": "from",
+                "addOptions": ""
+              },
+              {
+                "type": "number",
+                "label": "Subject",
+                "name": "subject",
+                "addOptions": ""
+              },
+              {
+                "type": "boolean",
+                "label": "Body",
+                "name": "body",
+                "addOptions": ""
+              },
+              {
+                "type": "options",
+                "label": "Choices",
+                "name": "choices",
+                "addOptions": [
+                  {
+                    "option": "choice 1"
+                  },
+                  {
+                    "option": "choice 2"
+                  }
+                ]
+              }
+            ]
+          */
+          if (startInputType === 'formInput' && formInputTypes && formInputTypes.length > 0) {
+            for (const formInputType of formInputTypes) {
+              if (formInputType.type === 'options') {
+                formInputType.options = formInputType.addOptions.map((option: any) => ({
+                  label: option.option,
+                  name: option.option,
+                }));
+              }
+            }
+            setFormInputParams(formInputTypes);
+            setFormTitle(startNode.data.inputs?.formTitle);
+            setFormDescription(startNode.data.inputs?.formDescription);
+          }
+        }
+      }
+
       if ((!props.starterPrompts || props.starterPrompts?.length === 0) && chatbotConfig.starterPrompts) {
         const prompts: string[] = [];
         Object.getOwnPropertyNames(chatbotConfig.starterPrompts).forEach((key) => {
@@ -888,6 +1396,15 @@ export const Bot = (botProps: BotProps & { class?: string }) => {
           setMessages((prevMessages) => [...prevMessages, { message: '', type: 'leadCaptureMessage' }]);
         }
       }
+      if (chatbotConfig.followUpPrompts) {
+        setFollowUpPromptsStatus(chatbotConfig.followUpPrompts.status);
+      }
+      if (chatbotConfig.fullFileUpload) {
+        setFullFileUpload(chatbotConfig.fullFileUpload.status);
+        if (chatbotConfig.fullFileUpload?.allowedUploadFileTypes) {
+          setFullFileUploadAllowedTypes(chatbotConfig.fullFileUpload?.allowedUploadFileTypes);
+        }
+      }
     }
 
     // eslint-disable-next-line solid/reactivity
@@ -902,6 +1419,17 @@ export const Bot = (botProps: BotProps & { class?: string }) => {
         },
       ]);
     };
+  });
+
+  createEffect(() => {
+    if (followUpPromptsStatus() && messages().length > 0) {
+      const lastMessage = messages()[messages().length - 1];
+      if (lastMessage.type === 'apiMessage' && lastMessage.followUpPrompts) {
+        setFollowUpPrompts(JSON.parse(lastMessage.followUpPrompts));
+      } else if (lastMessage.type === 'userMessage') {
+        setFollowUpPrompts([]);
+      }
+    }
   });
 
   const addRecordingToPreviews = (blob: Blob) => {
@@ -940,7 +1468,10 @@ export const Bot = (botProps: BotProps & { class?: string }) => {
         }
       });
     }
-    if (uploadsConfig() && uploadsConfig()?.isFileUploadAllowed && uploadsConfig()?.fileUploadSizeAndTypes) {
+    if (fullFileUpload()) {
+      return true;
+    }
+    if (uploadsConfig() && uploadsConfig()?.isRAGFileUploadAllowed && uploadsConfig()?.fileUploadSizeAndTypes) {
       const fileExt = file.name.split('.').pop();
       if (fileExt) {
         uploadsConfig()?.fileUploadSizeAndTypes.map((allowed) => {
@@ -971,12 +1502,13 @@ export const Bot = (botProps: BotProps & { class?: string }) => {
       }
       // Only add files
       if (
+        !file.type ||
         !uploadsConfig()
           ?.imgUploadSizeAndTypes.map((allowed) => allowed.fileTypes)
           .join(',')
           .includes(file.type)
       ) {
-        uploadedFiles.push(file);
+        uploadedFiles.push({ file, type: fullFileUpload() ? 'file:full' : 'file:rag' });
       }
       const reader = new FileReader();
       const { name } = file;
@@ -1005,8 +1537,17 @@ export const Bot = (botProps: BotProps & { class?: string }) => {
     setPreviews((prevPreviews) => [...prevPreviews, ...(newFiles as FilePreview[])]);
   };
 
+  const isFileUploadAllowed = () => {
+    if (fullFileUpload()) {
+      return true;
+    } else if (uploadsConfig()?.isRAGFileUploadAllowed) {
+      return true;
+    }
+    return false;
+  };
+
   const handleDrag = (e: DragEvent) => {
-    if (uploadsConfig()?.isImageUploadAllowed || uploadsConfig()?.isFileUploadAllowed) {
+    if (uploadsConfig()?.isImageUploadAllowed || isFileUploadAllowed()) {
       e.preventDefault();
       e.stopPropagation();
       if (e.type === 'dragenter' || e.type === 'dragover') {
@@ -1018,7 +1559,7 @@ export const Bot = (botProps: BotProps & { class?: string }) => {
   };
 
   const handleDrop = async (e: InputEvent | DragEvent) => {
-    if (!uploadsConfig()?.isImageUploadAllowed && !uploadsConfig()?.isFileUploadAllowed) {
+    if (!uploadsConfig()?.isImageUploadAllowed && !isFileUploadAllowed) {
       return;
     }
     e.preventDefault();
@@ -1032,12 +1573,13 @@ export const Bot = (botProps: BotProps & { class?: string }) => {
         }
         // Only add files
         if (
+          !file.type ||
           !uploadsConfig()
             ?.imgUploadSizeAndTypes.map((allowed) => allowed.fileTypes)
             .join(',')
             .includes(file.type)
         ) {
-          uploadedFiles.push(file);
+          uploadedFiles.push({ file, type: fullFileUpload() ? 'file:full' : 'file:rag' });
         }
         const reader = new FileReader();
         const { name } = file;
@@ -1187,248 +1729,291 @@ export const Bot = (botProps: BotProps & { class?: string }) => {
         </div>
       );
     } else {
-      return <FilePreview item={item} onDelete={() => handleDeletePreview(item)} />;
+      return <FilePreview disabled={getInputDisabled()} item={item} onDelete={() => handleDeletePreview(item)} />;
     }
   };
 
   return (
     <>
-      <div
-        ref={botContainer}
-        class={'relative flex w-full h-full text-base overflow-hidden bg-cover bg-center flex-col items-center chatbot-container ' + props.class}
-        onDragEnter={handleDrag}
-      >
-        {isDragActive() && (
-          <div
-            class="absolute top-0 left-0 bottom-0 right-0 w-full h-full z-50"
-            onDragEnter={handleDrag}
-            onDragLeave={handleDrag}
-            onDragEnd={handleDrag}
-            onDragOver={handleDrag}
-            onDrop={handleDrop}
-          />
-        )}
-        {isDragActive() && (uploadsConfig()?.isImageUploadAllowed || uploadsConfig()?.isFileUploadAllowed) && (
-          <div
-            class="absolute top-0 left-0 bottom-0 right-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm text-white z-40 gap-2 border-2 border-dashed"
-            style={{ 'border-color': props.bubbleBackgroundColor }}
-          >
-            <h2 class="text-xl font-semibold">Drop here to upload</h2>
-            <For each={[...(uploadsConfig()?.imgUploadSizeAndTypes || []), ...(uploadsConfig()?.fileUploadSizeAndTypes || [])]}>
-              {(allowed) => {
-                return (
-                  <>
-                    <span>{allowed.fileTypes?.join(', ')}</span>
-                    {allowed.maxUploadSize && <span>Max Allowed Size: {allowed.maxUploadSize} MB</span>}
-                  </>
-                );
-              }}
-            </For>
-          </div>
-        )}
-
-        {props.showTitle ? (
-          <div
-            class="flex flex-row items-center w-full h-[50px] absolute top-0 left-0 z-10"
-            style={{
-              background: props.bubbleBackgroundColor,
-              color: props.bubbleTextColor,
-              'border-top-left-radius': props.isFullPage ? '0px' : '6px',
-              'border-top-right-radius': props.isFullPage ? '0px' : '6px',
-            }}
-          >
-            <Show when={props.titleAvatarSrc}>
-              <>
-                <div style={{ width: '15px' }} />
-                <Avatar initialAvatarSrc={props.titleAvatarSrc} />
-              </>
-            </Show>
-            <Show when={props.title}>
-              <span class="px-3 whitespace-pre-wrap font-semibold max-w-full">{props.title}</span>
-            </Show>
-            <div style={{ flex: 1 }} />
-            <DeleteButton
-              sendButtonColor={props.bubbleTextColor}
-              type="button"
-              isDisabled={messages().length === 1}
-              class="my-2 ml-2"
-              on:click={clearChat}
+      {startInputType() === 'formInput' && messages().length === 1 ? (
+        <FormInputView
+          title={formTitle()}
+          description={formDescription()}
+          inputParams={formInputParams()}
+          onSubmit={(formData) => handleSubmit(formData)}
+          parentBackgroundColor={props?.backgroundColor}
+          backgroundColor={props?.formBackgroundColor}
+          textColor={props?.formTextColor || props.botMessage?.textColor}
+          sendButtonColor={props.textInput?.sendButtonColor}
+          fontSize={props.fontSize}
+        />
+      ) : (
+        <div
+          ref={botContainer}
+          class={'relative flex w-full h-full text-base overflow-hidden bg-cover bg-center flex-col items-center chatbot-container ' + props.class}
+          onDragEnter={handleDrag}
+        >
+          {isDragActive() && (
+            <div
+              class="absolute top-0 left-0 bottom-0 right-0 w-full h-full z-50"
+              onDragEnter={handleDrag}
+              onDragLeave={handleDrag}
+              onDragEnd={handleDrag}
+              onDragOver={handleDrag}
+              onDrop={handleDrop}
+            />
+          )}
+          {isDragActive() && (uploadsConfig()?.isImageUploadAllowed || isFileUploadAllowed()) && (
+            <div
+              class="absolute top-0 left-0 bottom-0 right-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm text-white z-40 gap-2 border-2 border-dashed"
+              style={{ 'border-color': props.bubbleBackgroundColor }}
             >
-              <span style={{ 'font-family': 'Poppins, sans-serif' }}>Clear</span>
-            </DeleteButton>
-          </div>
-        ) : null}
-        <div class="flex flex-col w-full h-full justify-start z-0">
-          <div
-            ref={chatContainer}
-            class="overflow-y-scroll flex flex-col flex-grow min-w-full w-full px-3 pt-[70px] relative scrollable-container chatbot-chat-view scroll-smooth"
-          >
-            <For each={[...messages()]}>
-              {(message, index) => {
-                return (
-                  <>
-                    {message.type === 'userMessage' && (
-                      <GuestBubble
-                        message={message}
-                        apiHost={props.apiHost}
-                        chatflowid={props.chatflowid}
-                        chatId={chatId()}
-                        backgroundColor={props.userMessage?.backgroundColor}
-                        textColor={props.userMessage?.textColor}
-                        showAvatar={props.userMessage?.showAvatar}
-                        avatarSrc={props.userMessage?.avatarSrc}
-                        fontSize={props.fontSize}
-                      />
-                    )}
-                    {message.type === 'apiMessage' && (
-                      <BotBubble
-                        message={message}
-                        fileAnnotations={message.fileAnnotations}
-                        chatflowid={props.chatflowid}
-                        chatId={chatId()}
-                        apiHost={props.apiHost}
-                        backgroundColor={props.botMessage?.backgroundColor}
-                        textColor={props.botMessage?.textColor}
-                        feedbackColor={props.feedback?.color}
-                        showAvatar={props.botMessage?.showAvatar}
-                        avatarSrc={props.botMessage?.avatarSrc}
-                        chatFeedbackStatus={chatFeedbackStatus()}
-                        fontSize={props.fontSize}
-                        isLoading={loading() && index() === messages().length - 1}
-                        showAgentMessages={props.showAgentMessages}
-                        handleActionClick={(label, action) => handleActionClick(label, action)}
-                        sourceDocsTitle={props.sourceDocsTitle}
-                        handleSourceDocumentsClick={(sourceDocuments) => {
-                          setSourcePopupSrc(sourceDocuments);
-                          setSourcePopupOpen(true);
-                        }}
-                      />
-                    )}
-                    {message.type === 'leadCaptureMessage' && leadsConfig()?.status && !getLocalStorageChatflow(props.chatflowid)?.lead && (
-                      <LeadCaptureBubble
-                        message={message}
-                        chatflowid={props.chatflowid}
-                        chatId={chatId()}
-                        apiHost={props.apiHost}
-                        backgroundColor={props.botMessage?.backgroundColor}
-                        textColor={props.botMessage?.textColor}
-                        fontSize={props.fontSize}
-                        showAvatar={props.botMessage?.showAvatar}
-                        avatarSrc={props.botMessage?.avatarSrc}
-                        leadsConfig={leadsConfig()}
-                        sendButtonColor={props.textInput?.sendButtonColor}
-                        isLeadSaved={isLeadSaved()}
-                        setIsLeadSaved={setIsLeadSaved}
-                        setLeadEmail={setLeadEmail}
-                      />
-                    )}
-                    {message.type === 'userMessage' && loading() && index() === messages().length - 1 && <LoadingBubble />}
-                    {message.type === 'apiMessage' && message.message === '' && loading() && index() === messages().length - 1 && <LoadingBubble />}
-                  </>
-                );
+              <h2 class="text-xl font-semibold">Drop here to upload</h2>
+              <For each={[...(uploadsConfig()?.imgUploadSizeAndTypes || []), ...(uploadsConfig()?.fileUploadSizeAndTypes || [])]}>
+                {(allowed) => {
+                  return (
+                    <>
+                      <span>{allowed.fileTypes?.join(', ')}</span>
+                      {allowed.maxUploadSize && <span>Max Allowed Size: {allowed.maxUploadSize} MB</span>}
+                    </>
+                  );
+                }}
+              </For>
+            </div>
+          )}
+
+          {props.showTitle ? (
+            <div
+              class="flex flex-row items-center w-full h-[50px] absolute top-0 left-0 z-10"
+              style={{
+                background: props.titleBackgroundColor || props.bubbleBackgroundColor || defaultTitleBackgroundColor,
+                color: props.titleTextColor || props.bubbleTextColor || defaultBackgroundColor,
+                'border-top-left-radius': props.isFullPage ? '0px' : '6px',
+                'border-top-right-radius': props.isFullPage ? '0px' : '6px',
               }}
-            </For>
-          </div>
-          <Show when={messages().length === 1}>
-            <Show when={starterPrompts().length > 0}>
-              <div class="w-full flex flex-row flex-wrap px-5 py-[10px] gap-2">
-                <For each={[...starterPrompts()]}>
-                  {(key) => (
-                    <StarterPromptBubble
-                      prompt={key}
-                      onPromptClick={() => promptClick(key)}
-                      starterPromptFontSize={botProps.starterPromptFontSize} // Pass it here as a number
-                    />
-                  )}
-                </For>
+            >
+              <Show when={props.titleAvatarSrc}>
+                <>
+                  <div style={{ width: '15px' }} />
+                  <Avatar initialAvatarSrc={props.titleAvatarSrc} />
+                </>
+              </Show>
+              <Show when={props.title}>
+                <span class="px-3 whitespace-pre-wrap font-semibold max-w-full">{props.title}</span>
+              </Show>
+              <div style={{ flex: 1 }} />
+              <DeleteButton
+                sendButtonColor={props.bubbleTextColor}
+                type="button"
+                isDisabled={messages().length === 1}
+                class="my-2 ml-2"
+                on:click={clearChat}
+              >
+                <span style={{ 'font-family': 'Poppins, sans-serif' }}>Clear</span>
+              </DeleteButton>
+            </div>
+          ) : null}
+          <div class="flex flex-col w-full h-full justify-start z-0">
+            <div
+              ref={chatContainer}
+              class="overflow-y-scroll flex flex-col flex-grow min-w-full w-full px-3 pt-[70px] relative scrollable-container chatbot-chat-view scroll-smooth"
+            >
+              <For each={[...messages()]}>
+                {(message, index) => {
+                  return (
+                    <>
+                      {message.type === 'userMessage' && (
+                        <GuestBubble
+                          message={message}
+                          apiHost={props.apiHost}
+                          chatflowid={props.chatflowid}
+                          chatId={chatId()}
+                          backgroundColor={props.userMessage?.backgroundColor}
+                          textColor={props.userMessage?.textColor}
+                          showAvatar={props.userMessage?.showAvatar}
+                          avatarSrc={props.userMessage?.avatarSrc}
+                          fontSize={props.fontSize}
+                          renderHTML={props.renderHTML}
+                        />
+                      )}
+                      {message.type === 'apiMessage' && (
+                        <BotBubble
+                          message={message}
+                          fileAnnotations={message.fileAnnotations}
+                          chatflowid={props.chatflowid}
+                          chatId={chatId()}
+                          apiHost={props.apiHost}
+                          backgroundColor={props.botMessage?.backgroundColor}
+                          textColor={props.botMessage?.textColor}
+                          feedbackColor={props.feedback?.color}
+                          showAvatar={props.botMessage?.showAvatar}
+                          avatarSrc={props.botMessage?.avatarSrc}
+                          chatFeedbackStatus={chatFeedbackStatus()}
+                          fontSize={props.fontSize}
+                          isLoading={loading() && index() === messages().length - 1}
+                          showAgentMessages={props.showAgentMessages}
+                          handleActionClick={(elem, action) => handleActionClick(elem, action)}
+                          sourceDocsTitle={props.sourceDocsTitle}
+                          handleSourceDocumentsClick={(sourceDocuments) => {
+                            setSourcePopupSrc(sourceDocuments);
+                            setSourcePopupOpen(true);
+                          }}
+                          dateTimeToggle={props.dateTimeToggle}
+                          renderHTML={props.renderHTML}
+                        />
+                      )}
+                      {message.type === 'leadCaptureMessage' && leadsConfig()?.status && !getLocalStorageChatflow(props.chatflowid)?.lead && (
+                        <LeadCaptureBubble
+                          message={message}
+                          chatflowid={props.chatflowid}
+                          chatId={chatId()}
+                          apiHost={props.apiHost}
+                          backgroundColor={props.botMessage?.backgroundColor}
+                          textColor={props.botMessage?.textColor}
+                          fontSize={props.fontSize}
+                          showAvatar={props.botMessage?.showAvatar}
+                          avatarSrc={props.botMessage?.avatarSrc}
+                          leadsConfig={leadsConfig()}
+                          sendButtonColor={props.textInput?.sendButtonColor}
+                          isLeadSaved={isLeadSaved()}
+                          setIsLeadSaved={setIsLeadSaved}
+                          setLeadEmail={setLeadEmail}
+                        />
+                      )}
+                      {message.type === 'userMessage' && loading() && index() === messages().length - 1 && <LoadingBubble />}
+                      {message.type === 'apiMessage' && message.message === '' && loading() && index() === messages().length - 1 && <LoadingBubble />}
+                    </>
+                  );
+                }}
+              </For>
+            </div>
+            <Show when={messages().length === 1}>
+              <Show when={starterPrompts().length > 0}>
+                <div class="w-full flex flex-row flex-wrap px-5 py-[10px] gap-2">
+                  <For each={[...starterPrompts()]}>
+                    {(key) => (
+                      <StarterPromptBubble
+                        prompt={key}
+                        onPromptClick={() => promptClick(key)}
+                        starterPromptFontSize={botProps.starterPromptFontSize} // Pass it here as a number
+                      />
+                    )}
+                  </For>
+                </div>
+              </Show>
+            </Show>
+            <Show when={messages().length > 2 && followUpPromptsStatus()}>
+              <Show when={followUpPrompts().length > 0}>
+                <>
+                  <div class="flex items-center gap-1 px-5">
+                    <SparklesIcon class="w-4 h-4" />
+                    <span class="text-sm text-gray-700">Try these prompts</span>
+                  </div>
+                  <div class="w-full flex flex-row flex-wrap px-5 py-[10px] gap-2">
+                    <For each={[...followUpPrompts()]}>
+                      {(prompt, index) => (
+                        <FollowUpPromptBubble
+                          prompt={prompt}
+                          onPromptClick={() => followUpPromptClick(prompt)}
+                          starterPromptFontSize={botProps.starterPromptFontSize} // Pass it here as a number
+                        />
+                      )}
+                    </For>
+                  </div>
+                </>
+              </Show>
+            </Show>
+            <Show when={previews().length > 0}>
+              <div class="w-full flex items-center justify-start gap-2 px-5 pt-2 border-t border-[#eeeeee]">
+                <For each={[...previews()]}>{(item) => <>{previewDisplay(item)}</>}</For>
               </div>
             </Show>
-          </Show>
-          <Show when={previews().length > 0}>
-            <div class="w-full flex items-center justify-start gap-2 px-5 pt-2 border-t border-[#eeeeee]">
-              <For each={[...previews()]}>{(item) => <>{previewDisplay(item)}</>}</For>
+            <div class="w-full px-5 pt-2 pb-1">
+              {isRecording() ? (
+                <>
+                  {recordingNotSupported() ? (
+                    <div class="w-full flex items-center justify-between p-4 border border-[#eeeeee]">
+                      <div class="w-full flex items-center justify-between gap-3">
+                        <span class="text-base">To record audio, use modern browsers like Chrome or Firefox that support audio recording.</span>
+                        <button
+                          class="py-2 px-4 justify-center flex items-center bg-red-500 text-white rounded-md"
+                          type="button"
+                          onClick={() => onRecordingCancelled()}
+                        >
+                          Okay
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      class="h-[58px] flex items-center justify-between chatbot-input border border-[#eeeeee]"
+                      data-testid="input"
+                      style={{
+                        margin: 'auto',
+                        'background-color': props.textInput?.backgroundColor ?? defaultBackgroundColor,
+                        color: props.textInput?.textColor ?? defaultTextColor,
+                      }}
+                    >
+                      <div class="flex items-center gap-3 px-4 py-2">
+                        <span>
+                          <CircleDotIcon color="red" />
+                        </span>
+                        <span>{elapsedTime() || '00:00'}</span>
+                        {isLoadingRecording() && <span class="ml-1.5">Sending...</span>}
+                      </div>
+                      <div class="flex items-center">
+                        <CancelButton buttonColor={props.textInput?.sendButtonColor} type="button" class="m-0" on:click={onRecordingCancelled}>
+                          <span style={{ 'font-family': 'Poppins, sans-serif' }}>Send</span>
+                        </CancelButton>
+                        <SendButton
+                          sendButtonColor={props.textInput?.sendButtonColor}
+                          type="button"
+                          isDisabled={loading()}
+                          class="m-0"
+                          on:click={onRecordingStopped}
+                        >
+                          <span style={{ 'font-family': 'Poppins, sans-serif' }}>Send</span>
+                        </SendButton>
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <TextInput
+                  backgroundColor={props.textInput?.backgroundColor}
+                  textColor={props.textInput?.textColor}
+                  placeholder={props.textInput?.placeholder}
+                  sendButtonColor={props.textInput?.sendButtonColor}
+                  maxChars={props.textInput?.maxChars}
+                  maxCharsWarningMessage={props.textInput?.maxCharsWarningMessage}
+                  autoFocus={props.textInput?.autoFocus}
+                  fontSize={props.fontSize}
+                  disabled={getInputDisabled()}
+                  inputValue={userInput()}
+                  onInputChange={(value) => setUserInput(value)}
+                  onSubmit={handleSubmit}
+                  uploadsConfig={uploadsConfig()}
+                  isFullFileUpload={fullFileUpload()}
+                  fullFileUploadAllowedTypes={fullFileUploadAllowedTypes()}
+                  setPreviews={setPreviews}
+                  onMicrophoneClicked={onMicrophoneClicked}
+                  handleFileChange={handleFileChange}
+                  sendMessageSound={props.textInput?.sendMessageSound}
+                  sendSoundLocation={props.textInput?.sendSoundLocation}
+                  enableInputHistory={true}
+                  maxHistorySize={10}
+                />
+              )}
             </div>
-          </Show>
-          <div class="w-full px-5 pt-2 pb-1">
-            {isRecording() ? (
-              <>
-                {recordingNotSupported() ? (
-                  <div class="w-full flex items-center justify-between p-4 border border-[#eeeeee]">
-                    <div class="w-full flex items-center justify-between gap-3">
-                      <span class="text-base">To record audio, use modern browsers like Chrome or Firefox that support audio recording.</span>
-                      <button
-                        class="py-2 px-4 justify-center flex items-center bg-red-500 text-white rounded-md"
-                        type="button"
-                        onClick={() => onRecordingCancelled()}
-                      >
-                        Okay
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div
-                    class="h-[58px] flex items-center justify-between chatbot-input border border-[#eeeeee]"
-                    data-testid="input"
-                    style={{
-                      margin: 'auto',
-                      'background-color': props.textInput?.backgroundColor ?? defaultBackgroundColor,
-                      color: props.textInput?.textColor ?? defaultTextColor,
-                    }}
-                  >
-                    <div class="flex items-center gap-3 px-4 py-2">
-                      <span>
-                        <CircleDotIcon color="red" />
-                      </span>
-                      <span>{elapsedTime() || '00:00'}</span>
-                      {isLoadingRecording() && <span class="ml-1.5">Sending...</span>}
-                    </div>
-                    <div class="flex items-center">
-                      <CancelButton buttonColor={props.textInput?.sendButtonColor} type="button" class="m-0" on:click={onRecordingCancelled}>
-                        <span style={{ 'font-family': 'Poppins, sans-serif' }}>Send</span>
-                      </CancelButton>
-                      <SendButton
-                        sendButtonColor={props.textInput?.sendButtonColor}
-                        type="button"
-                        isDisabled={loading()}
-                        class="m-0"
-                        on:click={onRecordingStopped}
-                      >
-                        <span style={{ 'font-family': 'Poppins, sans-serif' }}>Send</span>
-                      </SendButton>
-                    </div>
-                  </div>
-                )}
-              </>
-            ) : (
-              <TextInput
-                backgroundColor={props.textInput?.backgroundColor}
-                textColor={props.textInput?.textColor}
-                placeholder={props.textInput?.placeholder}
-                sendButtonColor={props.textInput?.sendButtonColor}
-                maxChars={props.textInput?.maxChars}
-                maxCharsWarningMessage={props.textInput?.maxCharsWarningMessage}
-                autoFocus={props.textInput?.autoFocus}
-                fontSize={props.fontSize}
-                disabled={getInputDisabled()}
-                defaultValue={userInput()}
-                onSubmit={handleSubmit}
-                uploadsConfig={uploadsConfig()}
-                setPreviews={setPreviews}
-                onMicrophoneClicked={onMicrophoneClicked}
-                handleFileChange={handleFileChange}
-                sendMessageSound={props.textInput?.sendMessageSound}
-                sendSoundLocation={props.textInput?.sendSoundLocation}
-              />
-            )}
+            <Badge
+              footer={props.footer}
+              badgeBackgroundColor={props.badgeBackgroundColor}
+              poweredByTextColor={props.poweredByTextColor}
+              botContainer={botContainer}
+            />
           </div>
-          <Badge
-            footer={props.footer}
-            badgeBackgroundColor={props.badgeBackgroundColor}
-            poweredByTextColor={props.poweredByTextColor}
-            botContainer={botContainer}
-          />
         </div>
-      </div>
+      )}
       {sourcePopupOpen() && <Popup isOpen={sourcePopupOpen()} value={sourcePopupSrc()} onClose={() => setSourcePopupOpen(false)} />}
 
       {disclaimerPopupOpen() && (
@@ -1437,7 +2022,29 @@ export const Bot = (botProps: BotProps & { class?: string }) => {
           onAccept={handleDisclaimerAccept}
           title={props.disclaimer?.title}
           message={props.disclaimer?.message}
+          textColor={props.disclaimer?.textColor}
+          buttonColor={props.disclaimer?.buttonColor}
           buttonText={props.disclaimer?.buttonText}
+          buttonTextColor={props.disclaimer?.buttonTextColor}
+          blurredBackgroundColor={props.disclaimer?.blurredBackgroundColor}
+          backgroundColor={props.disclaimer?.backgroundColor}
+          denyButtonBgColor={props.disclaimer?.denyButtonBgColor}
+          denyButtonText={props.disclaimer?.denyButtonText}
+          onDeny={props.closeBot}
+          isFullPage={props.isFullPage}
+        />
+      )}
+
+      {openFeedbackDialog() && (
+        <FeedbackDialog
+          isOpen={openFeedbackDialog()}
+          onClose={() => {
+            setOpenFeedbackDialog(false);
+            handleSubmitFeedback();
+          }}
+          onSubmit={handleSubmitFeedback}
+          feedbackValue={feedback()}
+          setFeedbackValue={(value) => setFeedback(value)}
         />
       )}
     </>

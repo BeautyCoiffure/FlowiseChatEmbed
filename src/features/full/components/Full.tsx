@@ -45,6 +45,9 @@ export const Full = (props: FullProps, { element }: { element: HTMLElement }) =>
 
   return (
     <>
+      <Show when={props.theme?.customCSS}>
+        <style>{props.theme?.customCSS}</style>
+      </Show>
       <style>{styles}</style>
       <Show when={isBotDisplayed()}>
         <div
@@ -57,6 +60,9 @@ export const Full = (props: FullProps, { element }: { element: HTMLElement }) =>
           }}
         >
           <Bot
+            backgroundColor={props.theme?.chatWindow?.backgroundColor}
+            formBackgroundColor={props.theme?.form?.backgroundColor}
+            formTextColor={props.theme?.form?.textColor}
             badgeBackgroundColor={props.theme?.chatWindow?.backgroundColor}
             bubbleBackgroundColor={props.theme?.button?.backgroundColor ?? defaultButtonColor}
             bubbleTextColor={props.theme?.button?.iconColor ?? defaultIconColor}
@@ -64,6 +70,8 @@ export const Full = (props: FullProps, { element }: { element: HTMLElement }) =>
             showAgentMessages={props.theme?.chatWindow?.showAgentMessages}
             title={props.theme?.chatWindow?.title}
             titleAvatarSrc={props.theme?.chatWindow?.titleAvatarSrc}
+            titleTextColor={props.theme?.chatWindow?.titleTextColor}
+            titleBackgroundColor={props.theme?.chatWindow?.titleBackgroundColor}
             welcomeMessage={props.theme?.chatWindow?.welcomeMessage}
             errorMessage={props.theme?.chatWindow?.errorMessage}
             poweredByTextColor={props.theme?.chatWindow?.poweredByTextColor}
@@ -83,6 +91,8 @@ export const Full = (props: FullProps, { element }: { element: HTMLElement }) =>
             starterPromptFontSize={props.theme?.chatWindow?.starterPromptFontSize}
             clearChatOnReload={props.theme?.chatWindow?.clearChatOnReload}
             disclaimer={props.theme?.disclaimer}
+            dateTimeToggle={props.theme?.chatWindow?.dateTimeToggle}
+            renderHTML={props.theme?.chatWindow?.renderHTML}
           />
         </div>
       </Show>
