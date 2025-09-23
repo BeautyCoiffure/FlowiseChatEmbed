@@ -72,6 +72,7 @@ export type MessageType = {
     agentFlowEventStatus?: string;
     agentFlowExecutedData?: any;
     usedTools?: any[];
+    calledTools?: any[];
     action?: IAction | null;
     rating?: FeedbackRatingType;
     id?: string;

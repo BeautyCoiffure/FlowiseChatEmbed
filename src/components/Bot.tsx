@@ -119,6 +119,7 @@ export type MessageType = {
   agentFlowEventStatus?: string;
   agentFlowExecutedData?: any;
   usedTools?: any[];
+  calledTools?: any[];
   action?: IAction | null;
   rating?: FeedbackRatingType;
   id?: string;
@@ -1281,6 +1282,8 @@ export const Bot = (botProps: BotProps & { class?: string }) => {
               if (message.agentReasoning) chatHistory.agentReasoning = message.agentReasoning;
               if (message.action) chatHistory.action = message.action;
               if (message.artifacts) chatHistory.artifacts = message.artifacts;
+              if (message.usedTools) chatHistory.usedTools = message.usedTools;
+              if (message.calledTools) chatHistory.calledTools = message.calledTools;
               if (message.followUpPrompts) chatHistory.followUpPrompts = message.followUpPrompts;
               if (message.execution && message.execution.executionData)
                 chatHistory.agentFlowExecutedData =

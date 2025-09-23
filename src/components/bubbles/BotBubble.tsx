@@ -288,7 +288,6 @@ export const BotBubble = (props: Props) => {
     
     const extractedProducts: { pageContent: string; price_pro: number; price: number; name: string; url: string; images_url: string; product_id: number }[] = [];
     
-    
     // Extract from artifacts
     if (props.message.artifacts && props.message.artifacts.length > 0) {
       props.message.artifacts.forEach((artifact) => {
@@ -368,6 +367,61 @@ export const BotBubble = (props: Props) => {
           } catch (error) {
             // If pageContent is not JSON, it might contain product info in text format
             // This is a fallback - you might need to adjust based on your data format
+          }
+        }
+      });
+    }
+    
+    // Extract from calledTools first (often contains the tool call data)
+    if (props.message.calledTools && props.message.calledTools.length > 0 && extractedProducts.length === 0) {
+      props.message.calledTools.forEach((tool: any) => {
+        
+        // Try different possible data structures in the tool
+        const possibleDataSources = [
+          tool?.toolOutput,
+          tool?.output,
+          tool?.result,
+          tool?.data,
+          tool?.args,
+          tool
+        ];
+        
+        for (const dataSource of possibleDataSources) {
+          if (dataSource && typeof dataSource === 'object') {
+            try {
+              let data = dataSource;
+              if (typeof dataSource === 'string') {
+                data = JSON.parse(dataSource);
+              }
+              
+              if (Array.isArray(data)) {
+                data.forEach((item) => {
+                  if (item && typeof item === 'object' && item.product_id && item.name) {
+                    extractedProducts.push({
+                      pageContent: item.pageContent || '',
+                      price_pro: item.price_pro || item.price || 0,
+                      price: item.price || 0,
+                      name: item.name || '',
+                      url: item.url || '',
+                      images_url: Array.isArray(item.images_url) ? item.images_url : [item.images_url || ''],
+                      product_id: item.product_id || 0
+                    });
+                  }
+                });
+              } else if (data && typeof data === 'object' && data.product_id && data.name) {
+                extractedProducts.push({
+                  pageContent: data.pageContent || '',
+                  price_pro: data.price_pro || data.price || 0,
+                  price: data.price || 0,
+                  name: data.name || '',
+                  url: data.url || '',
+                  images_url: Array.isArray(data.images_url) ? data.images_url : [data.images_url || ''],
+                  product_id: data.product_id || 0
+                });
+              }
+            } catch (error) {
+              // Continue to next data source
+            }
           }
         }
       });
