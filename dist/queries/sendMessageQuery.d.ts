@@ -1,6 +1,7 @@
 import { FileUpload, IAction } from '@/components/Bot';
 export type IncomingInput = {
-    question: string;
+    question?: string;
+    form?: Record<string, unknown>;
     uploads?: FileUpload[];
     overrideConfig?: Record<string, unknown>;
     socketIOClientId?: string;
@@ -8,6 +9,7 @@ export type IncomingInput = {
     fileName?: string;
     leadEmail?: string;
     action?: IAction;
+    humanInput?: Record<string, unknown>;
 };
 type BaseRequest = {
     apiHost?: string;
@@ -57,6 +59,10 @@ export declare const updateFeedbackQuery: ({ id, apiHost, body, onRequest }: Upd
 }>;
 export declare const sendMessageQuery: ({ chatflowid, apiHost, body, onRequest }: MessageRequest) => Promise<{
     data?: any;
+    error?: Error | undefined;
+}>;
+export declare const createAttachmentWithFormData: ({ chatflowid, apiHost, formData, onRequest }: UpsertRequest) => Promise<{
+    data?: unknown;
     error?: Error | undefined;
 }>;
 export declare const upsertVectorStoreWithFormData: ({ chatflowid, apiHost, formData, onRequest }: UpsertRequest) => Promise<{
