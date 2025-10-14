@@ -8,15 +8,16 @@
 
 <body>
     <script type="module">
-        import Chatbot from './dist/web.js';
-        // import Chatbot from 'https://cdn.jsdelivr.net/gh/BeautyCoiffure/FlowiseChatEmbed/dist/web.js';
+        // import Chatbot from './dist/web.js';
+        import Chatbot from 'https://cdn.jsdelivr.net/gh/BeautyCoiffure/FlowiseChatEmbed/dist/web.js';
         Chatbot.initFull({
-            chatflowid: "360c891c-9e57-40e6-aa25-885d816963ab",
-            apiHost: "https://flowise.beautycoiffure.com",
+            chatflowid: "ec0c71dd-2124-4982-b039-685086385efb",
+            apiHost: "https://cloud.flowiseai.com",
             chatflowConfig: {
                 vars: {
-                    email: "julesdix71@mail.com",
-                    fullName: "jules dixon"
+                    email: "antoine.beautycoiffure@gmail.com",
+                    fullName: "Antoine Picard",
+                    pageUrl: "https://www.beautycoiffure.com/absolut-repair-molecular-serie-expert-l-oreal-professionnel/127045-huile-bi-phase-reparatrice-absolut-repair-molecular-l-oreal-professionnel-30ml.html",
                 }
             },
             theme: {
@@ -26,7 +27,7 @@
                 },
                 chatWindow: {
                     title: "Besoin d'aide ?",
-                    welcomeMessage: "Bonjour! Comment puis-je vous aider?",
+                    welcomeMessage: "Bonjour! Comment puis-je vous aider ?",
                     starterPrompts: ["Où est ma dernière commande?"],
                     userMessage: {
                         backgroundColor: "#e71e62"

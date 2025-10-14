@@ -53,7 +53,7 @@ export const BotBubble = (props: Props) => {
   const [thumbsDownColor, setThumbsDownColor] = createSignal(props.feedbackColor ?? defaultFeedbackColor); // default color
   const [loadingStates, setLoadingStates] = createSignal<{ [key: number]: 'idle' | 'loading' | 'success' }>({});
   const [products, setProducts] = createSignal<
-    { pageContent: string; price_pro: number; price: number; name: string; url: string; images_url: string; product_id: number }[]
+    { pageContent: string; price_pro: number; price: number; name: string; url: string; images_url: string[]; product_id: number }[]
   >([]);
 
   // Store a reference to the bot message element for the copyMessageToClipboard function
@@ -285,9 +285,17 @@ export const BotBubble = (props: Props) => {
   createEffect(() => {
     // Reset products when message changes to allow new searches
     setProducts([]);
-    
-    const extractedProducts: { pageContent: string; price_pro: number; price: number; name: string; url: string; images_url: string; product_id: number }[] = [];
-    
+
+    const extractedProducts: {
+      pageContent: string;
+      price_pro: number;
+      price: number;
+      name: string;
+      url: string;
+      images_url: string[];
+      product_id: number;
+    }[] = [];
+
     // Extract from artifacts
     if (props.message.artifacts && props.message.artifacts.length > 0) {
       props.message.artifacts.forEach((artifact) => {
@@ -295,7 +303,7 @@ export const BotBubble = (props: Props) => {
           try {
             // Try to parse the artifact data as JSON
             const data = typeof artifact.data === 'string' ? JSON.parse(artifact.data) : artifact.data;
-            
+
             // Check if it's an array of products
             if (Array.isArray(data)) {
               data.forEach((item) => {
@@ -307,7 +315,7 @@ export const BotBubble = (props: Props) => {
                     name: item.name || '',
                     url: item.url || '',
                     images_url: Array.isArray(item.images_url) ? item.images_url : [item.images_url || ''],
-                    product_id: item.product_id || 0
+                    product_id: item.product_id || 0,
                   });
                 }
               });
@@ -321,23 +329,22 @@ export const BotBubble = (props: Props) => {
                 name: data.name || '',
                 url: data.url || '',
                 images_url: Array.isArray(data.images_url) ? data.images_url : [data.images_url || ''],
-                product_id: data.product_id || 0
+                product_id: data.product_id || 0,
               });
             }
-          } catch (error) {
-          }
+          } catch (error) {}
         }
       });
     }
-    
+
     // Extract from sourceDocuments (in case products are stored there)
-    if (props.message.sourceDocuments && props.message.sourceDocuments.length > 0 && extractedProducts.length === 0) {
+    if (props.message.sourceDocuments && props.message.sourceDocuments.length > 0) {
       props.message.sourceDocuments.forEach((doc: any) => {
         if (doc && doc.pageContent) {
           try {
             // Try to parse pageContent as JSON
             const data = typeof doc.pageContent === 'string' ? JSON.parse(doc.pageContent) : doc.pageContent;
-            
+
             if (Array.isArray(data)) {
               data.forEach((item) => {
                 if (item && typeof item === 'object' && item.product_id && item.name) {
@@ -348,12 +355,11 @@ export const BotBubble = (props: Props) => {
                     name: item.name || '',
                     url: item.url || '',
                     images_url: Array.isArray(item.images_url) ? item.images_url : [item.images_url || ''],
-                    product_id: item.product_id || 0
+                    product_id: item.product_id || 0,
                   });
                 }
               });
-            }
-            else if (data && typeof data === 'object' && data.product_id && data.name) {
+            } else if (data && typeof data === 'object' && data.product_id && data.name) {
               extractedProducts.push({
                 pageContent: data.pageContent || '',
                 price_pro: data.price_pro || data.price || 0,
@@ -361,7 +367,7 @@ export const BotBubble = (props: Props) => {
                 name: data.name || '',
                 url: data.url || '',
                 images_url: Array.isArray(data.images_url) ? data.images_url : [data.images_url || ''],
-                product_id: data.product_id || 0
+                product_id: data.product_id || 0,
               });
             }
           } catch (error) {
@@ -371,21 +377,13 @@ export const BotBubble = (props: Props) => {
         }
       });
     }
-    
+
     // Extract from calledTools first (often contains the tool call data)
-    if (props.message.calledTools && props.message.calledTools.length > 0 && extractedProducts.length === 0) {
+    if (props.message.calledTools && props.message.calledTools.length > 0) {
       props.message.calledTools.forEach((tool: any) => {
-        
         // Try different possible data structures in the tool
-        const possibleDataSources = [
-          tool?.toolOutput,
-          tool?.output,
-          tool?.result,
-          tool?.data,
-          tool?.args,
-          tool
-        ];
-        
+        const possibleDataSources = [tool?.toolOutput, tool?.output, tool?.result, tool?.data, tool?.args, tool];
+
         for (const dataSource of possibleDataSources) {
           if (dataSource && typeof dataSource === 'object') {
             try {
@@ -393,7 +391,7 @@ export const BotBubble = (props: Props) => {
               if (typeof dataSource === 'string') {
                 data = JSON.parse(dataSource);
               }
-              
+
               if (Array.isArray(data)) {
                 data.forEach((item) => {
                   if (item && typeof item === 'object' && item.product_id && item.name) {
@@ -404,7 +402,7 @@ export const BotBubble = (props: Props) => {
                       name: item.name || '',
                       url: item.url || '',
                       images_url: Array.isArray(item.images_url) ? item.images_url : [item.images_url || ''],
-                      product_id: item.product_id || 0
+                      product_id: item.product_id || 0,
                     });
                   }
                 });
@@ -416,7 +414,7 @@ export const BotBubble = (props: Props) => {
                   name: data.name || '',
                   url: data.url || '',
                   images_url: Array.isArray(data.images_url) ? data.images_url : [data.images_url || ''],
-                  product_id: data.product_id || 0
+                  product_id: data.product_id || 0,
                 });
               }
             } catch (error) {
@@ -426,27 +424,34 @@ export const BotBubble = (props: Props) => {
         }
       });
     }
-    
+
     // Extract from usedTools (where product search results are likely stored)
-    if (props.message.usedTools && props.message.usedTools.length > 0 && extractedProducts.length === 0) {
+    if (props.message.usedTools && props.message.usedTools.length > 0) {
       props.message.usedTools.forEach((tool: any) => {
-        
         // Try different possible data structures in the tool
-        const possibleDataSources = [
-          tool?.toolOutput,
-          tool?.output,
-          tool?.result,
-          tool?.data,
-          tool?.response,
-          tool?.content
-        ];
-        
+        const possibleDataSources = [tool?.toolOutput, tool?.output, tool?.result, tool?.data, tool?.response, tool?.content];
+
         possibleDataSources.forEach((dataSource) => {
           if (dataSource) {
             try {
-              // Try to parse the data source as JSON
-              const data = typeof dataSource === 'string' ? JSON.parse(dataSource) : dataSource;
-              
+              let data;
+              if (typeof dataSource === 'string') {
+                // First, try standard JSON.parse
+                try {
+                  data = JSON.parse(dataSource);
+                } catch (jsonError) {
+                  // If JSON.parse fails, use Function constructor for JavaScript object notation
+                  // This is safe here because the data comes from the trusted backend
+                  try {
+                    data = new Function('return ' + dataSource)();
+                  } catch (fnError) {
+                    throw fnError;
+                  }
+                }
+              } else {
+                data = dataSource;
+              }
+
               // Helper function to extract products from data
               const extractProductsFromData = (data: any) => {
                 if (Array.isArray(data)) {
@@ -459,12 +464,11 @@ export const BotBubble = (props: Props) => {
                         name: item.name || '',
                         url: item.url || '',
                         images_url: Array.isArray(item.images_url) ? item.images_url : [item.images_url || ''],
-                        product_id: item.product_id || 0
+                        product_id: item.product_id || 0,
                       });
                     }
                   });
-                }
-                else if (data && typeof data === 'object' && data.product_id && data.name) {
+                } else if (data && typeof data === 'object' && data.product_id && data.name) {
                   extractedProducts.push({
                     pageContent: data.pageContent || '',
                     price_pro: data.price_pro || data.price || 0,
@@ -472,7 +476,7 @@ export const BotBubble = (props: Props) => {
                     name: data.name || '',
                     url: data.url || '',
                     images_url: Array.isArray(data.images_url) ? data.images_url : [data.images_url || ''],
-                    product_id: data.product_id || 0
+                    product_id: data.product_id || 0,
                   });
                 }
                 // Check if data contains a products array or similar
@@ -485,23 +489,23 @@ export const BotBubble = (props: Props) => {
                   });
                 }
               };
-              
+
               extractProductsFromData(data);
             } catch (error) {
-              // Error parsing usedTools data source
+              // Silently ignore parsing errors
             }
           }
         });
       });
     }
-    
+
     // Extract from agentFlowExecutedData (another possible source)
-    if (props.message.agentFlowExecutedData && props.message.agentFlowExecutedData.length > 0 && extractedProducts.length === 0) {
+    if (props.message.agentFlowExecutedData && props.message.agentFlowExecutedData.length > 0) {
       props.message.agentFlowExecutedData.forEach((flowData: any) => {
         if (flowData && flowData.data) {
           try {
             const data = typeof flowData.data === 'string' ? JSON.parse(flowData.data) : flowData.data;
-            
+
             if (Array.isArray(data)) {
               data.forEach((item) => {
                 if (item && typeof item === 'object' && item.product_id && item.name) {
@@ -512,12 +516,11 @@ export const BotBubble = (props: Props) => {
                     name: item.name || '',
                     url: item.url || '',
                     images_url: Array.isArray(item.images_url) ? item.images_url : [item.images_url || ''],
-                    product_id: item.product_id || 0
+                    product_id: item.product_id || 0,
                   });
                 }
               });
-            }
-            else if (data && typeof data === 'object' && data.product_id && data.name) {
+            } else if (data && typeof data === 'object' && data.product_id && data.name) {
               extractedProducts.push({
                 pageContent: data.pageContent || '',
                 price_pro: data.price_pro || data.price || 0,
@@ -525,7 +528,7 @@ export const BotBubble = (props: Props) => {
                 name: data.name || '',
                 url: data.url || '',
                 images_url: Array.isArray(data.images_url) ? data.images_url : [data.images_url || ''],
-                product_id: data.product_id || 0
+                product_id: data.product_id || 0,
               });
             }
           } catch (error) {
@@ -534,7 +537,7 @@ export const BotBubble = (props: Props) => {
         }
       });
     }
-    
+
     if (extractedProducts.length > 0) {
       setProducts(extractedProducts);
     }
