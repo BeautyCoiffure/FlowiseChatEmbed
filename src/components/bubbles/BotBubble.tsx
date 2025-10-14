@@ -31,6 +31,7 @@ type Props = {
   showAgentMessages?: boolean;
   sourceDocsTitle?: string;
   renderHTML?: boolean;
+  isLastMessage?: boolean;
   handleActionClick: (elem: any, action: IAction | undefined | null) => void;
   handleSourceDocumentsClick: (src: any) => void;
 };
@@ -801,7 +802,7 @@ export const BotBubble = (props: Props) => {
   // Example usage
   return (
     <div>
-      {products().length > 0 && (
+      {products().length > 0 && props.isLastMessage && (
         <div class="px-4 py-2  ml-2 scrollbar max-w-full prose relative">
           <div class="relative">
             <div class="overflow-x-auto products-container" style="scroll-behavior: smooth;">

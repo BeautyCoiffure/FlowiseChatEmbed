@@ -19,6 +19,7 @@ type Props = {
     showAgentMessages?: boolean;
     sourceDocsTitle?: string;
     renderHTML?: boolean;
+    isLastMessage?: boolean;
     handleActionClick: (elem: any, action: IAction | undefined | null) => void;
     handleSourceDocumentsClick: (src: any) => void;
 };
