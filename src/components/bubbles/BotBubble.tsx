@@ -897,7 +897,7 @@ export const BotBubble = (props: Props) => {
   // Example usage
   return (
     <div>
-      {products().length > 0 && props.isLastMessage && (
+      {products().length > 0 && (
         <div class="px-4 py-2  ml-2 scrollbar max-w-full prose relative">
           <div class="relative">
             <div class="overflow-x-auto products-container" style="scroll-behavior: smooth;">
