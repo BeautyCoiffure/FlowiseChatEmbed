@@ -54,7 +54,19 @@ export const BotBubble = (props: Props) => {
   const [thumbsDownColor, setThumbsDownColor] = createSignal(props.feedbackColor ?? defaultFeedbackColor); // default color
   const [loadingStates, setLoadingStates] = createSignal<{ [key: number]: 'idle' | 'loading' | 'success' }>({});
   const [products, setProducts] = createSignal<
-    { pageContent: string; price_pro: number; price: number; name: string; url: string; images_url: string[]; product_id: number }[]
+    {
+      pageContent: string;
+      price_pro: number;
+      price: number;
+      name: string;
+      url: string;
+      images_url: string[];
+      product_id: number;
+      reduced_price?: number;
+      reduced_price_pro?: number;
+      has_promo?: boolean;
+      discount_percent?: number;
+    }[]
   >([]);
 
   // Store a reference to the bot message element for the copyMessageToClipboard function
@@ -295,6 +307,10 @@ export const BotBubble = (props: Props) => {
       url: string;
       images_url: string[];
       product_id: number;
+      reduced_price?: number;
+      reduced_price_pro?: number;
+      has_promo?: boolean;
+      discount_percent?: number;
     }[] = [];
 
     // Extract from artifacts
@@ -308,29 +324,42 @@ export const BotBubble = (props: Props) => {
             // Check if it's an array of products
             if (Array.isArray(data)) {
               data.forEach((item) => {
-                if (item && typeof item === 'object' && item.product_id && item.name) {
+                if (item && typeof item === 'object' && (item.product_id || item.productId) && item.name) {
+                  // Détection de la promotion
+                  const hasPromotion = item.has_promo === true || item.has_promo === 1 || item.has_promo === '1';
+
                   extractedProducts.push({
-                    pageContent: item.pageContent || '',
-                    price_pro: item.price_pro || item.price || 0,
-                    price: item.price || 0,
+                    pageContent: item.pageContent || item.content || '',
+                    price_pro: parseFloat(item.price_pro || item.price || 0),
+                    // Utiliser normal_price_ttc comme prix de base (prix sans réduction)
+                    price: parseFloat(item.normal_price_ttc || item.price || 0),
                     name: item.name || '',
                     url: item.url || '',
                     images_url: Array.isArray(item.images_url) ? item.images_url : [item.images_url || ''],
-                    product_id: item.product_id || 0,
+                    product_id: item.product_id || item.productId || 0,
+                    // Prix réduit TTC depuis Flowise
+                    reduced_price: hasPromotion && item.price_ttc ? parseFloat(item.price_ttc) : undefined,
+                    reduced_price_pro: hasPromotion && item.reduced_price_pro ? parseFloat(item.reduced_price_pro) : undefined,
+                    has_promo: hasPromotion,
+                    discount_percent: item.discount_percent ? parseInt(item.discount_percent) : undefined,
                   });
                 }
               });
             }
             // Check if it's a single product object
-            else if (data && typeof data === 'object' && data.product_id && data.name) {
+            else if (data && typeof data === 'object' && (data.product_id || data.productId) && data.name) {
               extractedProducts.push({
-                pageContent: data.pageContent || '',
-                price_pro: data.price_pro || data.price || 0,
-                price: data.price || 0,
+                pageContent: data.pageContent || data.content || '',
+                price_pro: parseFloat(data.price_pro || data.price || 0),
+                price: parseFloat(data.price || 0),
                 name: data.name || '',
                 url: data.url || '',
                 images_url: Array.isArray(data.images_url) ? data.images_url : [data.images_url || ''],
-                product_id: data.product_id || 0,
+                product_id: data.product_id || data.productId || 0,
+                reduced_price: data.reduced_price ? parseFloat(data.reduced_price) : undefined,
+                reduced_price_pro: data.reduced_price_pro ? parseFloat(data.reduced_price_pro) : undefined,
+                has_promo: data.has_promo === true || data.has_promo === 1,
+                discount_percent: data.discount_percent ? parseInt(data.discount_percent) : undefined,
               });
             }
           } catch (error) {}
@@ -348,15 +377,24 @@ export const BotBubble = (props: Props) => {
 
             if (Array.isArray(data)) {
               data.forEach((item) => {
-                if (item && typeof item === 'object' && item.product_id && item.name) {
+                if (item && typeof item === 'object' && (item.product_id || item.productId) && item.name) {
+                  // Détection de la promotion
+                  const hasPromotion = item.has_promo === true || item.has_promo === 1 || item.has_promo === '1';
+
                   extractedProducts.push({
-                    pageContent: item.pageContent || '',
-                    price_pro: item.price_pro || item.price || 0,
-                    price: item.price || 0,
+                    pageContent: item.pageContent || item.content || '',
+                    price_pro: parseFloat(item.price_pro || item.price || 0),
+                    // Utiliser normal_price_ttc comme prix de base (prix sans réduction)
+                    price: parseFloat(item.normal_price_ttc || item.price || 0),
                     name: item.name || '',
                     url: item.url || '',
                     images_url: Array.isArray(item.images_url) ? item.images_url : [item.images_url || ''],
-                    product_id: item.product_id || 0,
+                    product_id: item.product_id || item.productId || 0,
+                    // Prix réduit TTC depuis Flowise
+                    reduced_price: hasPromotion && item.price_ttc ? parseFloat(item.price_ttc) : undefined,
+                    reduced_price_pro: hasPromotion && item.reduced_price_pro ? parseFloat(item.reduced_price_pro) : undefined,
+                    has_promo: hasPromotion,
+                    discount_percent: item.discount_percent ? parseInt(item.discount_percent) : undefined,
                   });
                 }
               });
@@ -457,27 +495,41 @@ export const BotBubble = (props: Props) => {
               const extractProductsFromData = (data: any) => {
                 if (Array.isArray(data)) {
                   data.forEach((item) => {
-                    if (item && typeof item === 'object' && item.product_id && item.name) {
+                    if (item && typeof item === 'object' && (item.product_id || item.productId) && item.name) {
+                      // Détection de la promotion
+                      const hasPromotion = item.has_promo === true || item.has_promo === 1 || item.has_promo === '1';
+
                       extractedProducts.push({
-                        pageContent: item.pageContent || '',
-                        price_pro: item.price_pro || item.price || 0,
-                        price: item.price || 0,
+                        pageContent: item.pageContent || item.content || '',
+                        price_pro: parseFloat(item.price_pro || item.price || 0),
+                        price: parseFloat(item.normal_price_ttc || item.price || 0),
                         name: item.name || '',
                         url: item.url || '',
                         images_url: Array.isArray(item.images_url) ? item.images_url : [item.images_url || ''],
-                        product_id: item.product_id || 0,
+                        product_id: item.product_id || item.productId || 0,
+                        reduced_price: hasPromotion && item.price_ttc ? parseFloat(item.price_ttc) : undefined,
+                        reduced_price_pro: hasPromotion && item.reduced_price_pro ? parseFloat(item.reduced_price_pro) : undefined,
+                        has_promo: hasPromotion,
+                        discount_percent: item.discount_percent ? parseInt(item.discount_percent) : undefined,
                       });
                     }
                   });
-                } else if (data && typeof data === 'object' && data.product_id && data.name) {
+                } else if (data && typeof data === 'object' && (data.product_id || data.productId) && data.name) {
+                  // Détection de la promotion
+                  const hasPromotion = data.has_promo === true || data.has_promo === 1 || data.has_promo === '1';
+
                   extractedProducts.push({
-                    pageContent: data.pageContent || '',
-                    price_pro: data.price_pro || data.price || 0,
-                    price: data.price || 0,
+                    pageContent: data.pageContent || data.content || '',
+                    price_pro: parseFloat(data.price_pro || data.price || 0),
+                    price: parseFloat(data.normal_price_ttc || data.price || 0),
                     name: data.name || '',
                     url: data.url || '',
                     images_url: Array.isArray(data.images_url) ? data.images_url : [data.images_url || ''],
-                    product_id: data.product_id || 0,
+                    product_id: data.product_id || data.productId || 0,
+                    reduced_price: hasPromotion && data.price_ttc ? parseFloat(data.price_ttc) : undefined,
+                    reduced_price_pro: hasPromotion && data.reduced_price_pro ? parseFloat(data.reduced_price_pro) : undefined,
+                    has_promo: hasPromotion,
+                    discount_percent: data.discount_percent ? parseInt(data.discount_percent) : undefined,
                   });
                 }
                 // Check if data contains a products array or similar
@@ -509,15 +561,24 @@ export const BotBubble = (props: Props) => {
 
             if (Array.isArray(data)) {
               data.forEach((item) => {
-                if (item && typeof item === 'object' && item.product_id && item.name) {
+                if (item && typeof item === 'object' && (item.product_id || item.productId) && item.name) {
+                  // Détection de la promotion
+                  const hasPromotion = item.has_promo === true || item.has_promo === 1 || item.has_promo === '1';
+
                   extractedProducts.push({
-                    pageContent: item.pageContent || '',
-                    price_pro: item.price_pro || item.price || 0,
-                    price: item.price || 0,
+                    pageContent: item.pageContent || item.content || '',
+                    price_pro: parseFloat(item.price_pro || item.price || 0),
+                    // Utiliser normal_price_ttc comme prix de base (prix sans réduction)
+                    price: parseFloat(item.normal_price_ttc || item.price || 0),
                     name: item.name || '',
                     url: item.url || '',
                     images_url: Array.isArray(item.images_url) ? item.images_url : [item.images_url || ''],
-                    product_id: item.product_id || 0,
+                    product_id: item.product_id || item.productId || 0,
+                    // Prix réduit TTC depuis Flowise
+                    reduced_price: hasPromotion && item.price_ttc ? parseFloat(item.price_ttc) : undefined,
+                    reduced_price_pro: hasPromotion && item.reduced_price_pro ? parseFloat(item.reduced_price_pro) : undefined,
+                    has_promo: hasPromotion,
+                    discount_percent: item.discount_percent ? parseInt(item.discount_percent) : undefined,
                   });
                 }
               });
@@ -808,58 +869,97 @@ export const BotBubble = (props: Props) => {
             <div class="overflow-x-auto products-container" style="scroll-behavior: smooth;">
               <div class="flex space-x-4 pb-4 w-max">
                 <For each={products()}>
-                  {(product) => (
-                    <div
-                      class="flex-shrink-0 w-36 sm:w-40 md:w-48 border rounded-lg p-2 hover:border-[#e71e62] cursor-pointer flex flex-col justify-between"
-                      onClick={() => window.open(product.url, '_blank')}
-                    >
-                      <div>
-                        <img
-                          src={product.images_url[0]}
-                          alt={product.name}
-                          class="w-full h-auto object-cover mb-2 rounded"
-                          onError={(e) => {
-                            const imgElement = e.target as HTMLImageElement;
-                            if (imgElement.src.endsWith('.webp')) {
-                              imgElement.src = imgElement.src.replace(/\.webp$/, '.jpg');
-                            }
-                          }}
-                        />
-                        <h5 class="font-bold text-sm line-clamp-2">{product.name}</h5>
-                      </div>
-                      <div class="flex justify-between items-center mt-2">
-                        <p class="font-semibold text-sm">
-                          {(window as any).prestashop?.customer?.is_pro ? formatPrice(product.price, true) : formatPrice(product.price)}
-                        </p>
-                        <button
-                          class="p-2 bg-black hover:bg-[#e71e62] hover:transition-colors hover:duration-150 text-white rounded-md flex items-center justify-center"
-                          style={{ width: '32px', height: '32px' }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (loadingStates()[product.product_id] !== 'loading') {
-                              addToCart(product.product_id, 1);
-                            }
-                          }}
-                        >
-                          {loadingStates()[product.product_id] === 'loading' ? (
-                            <div class="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
-                          ) : loadingStates()[product.product_id] === 'success' ? (
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                              <path
-                                fill-rule="evenodd"
-                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                clip-rule="evenodd"
-                              />
-                            </svg>
-                          ) : (
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                            </svg>
+                  {(product) => {
+                    const isPro = (window as any).prestashop?.customer?.is_pro;
+                    const hasPromo = product.has_promo === true;
+
+                    // Prix à afficher (toujours utiliser les prix TTC depuis Flowise)
+                    const currentPrice = hasPromo ? product.reduced_price || product.price : product.price;
+
+                    const originalPrice = hasPromo ? product.price : null;
+
+                    // Debug pour vérifier les valeurs
+                    console.log('🛍️ Product Display:', {
+                      name: product.name,
+                      isPro,
+                      hasPromo,
+                      has_promo: product.has_promo,
+                      price: product.price,
+                      price_pro: product.price_pro,
+                      reduced_price: product.reduced_price,
+                      reduced_price_pro: product.reduced_price_pro,
+                      discount_percent: product.discount_percent,
+                      currentPrice,
+                      originalPrice,
+                    });
+
+                    return (
+                      <div
+                        class="flex-shrink-0 w-36 sm:w-40 md:w-48 border rounded-lg p-2 hover:border-[#e71e62] cursor-pointer flex flex-col justify-between"
+                        onClick={() => window.open(product.url, '_blank')}
+                      >
+                        <div class="relative">
+                          {/* Badge de promotion */}
+                          {hasPromo && product.discount_percent && (
+                            <div class="absolute top-1 right-1 bg-[#e71e62] text-white text-xs font-bold px-2 py-1 rounded shadow-md z-10">
+                              -{product.discount_percent}%
+                            </div>
                           )}
-                        </button>
+                          <img
+                            src={product.images_url[0]}
+                            alt={product.name}
+                            class="w-full h-auto object-cover mb-2 rounded"
+                            onError={(e) => {
+                              const imgElement = e.target as HTMLImageElement;
+                              if (imgElement.src.endsWith('.webp')) {
+                                imgElement.src = imgElement.src.replace(/\.webp$/, '.jpg');
+                              }
+                            }}
+                          />
+                          <h5 class="font-bold text-sm line-clamp-2">{product.name}</h5>
+                        </div>
+                        <div class="flex justify-between items-center mt-2">
+                          <p class="font-semibold text-sm" style={{ color: hasPromo && originalPrice ? '#e71e62' : 'inherit' }}>
+                            {hasPromo && originalPrice && (
+                              <span class="text-xs text-gray-500 line-through block">{formatPrice(originalPrice, false)}</span>
+                            )}
+                            {formatPrice(currentPrice, false)}
+                          </p>
+                          <button
+                            class="p-2 bg-black hover:bg-[#e71e62] hover:transition-colors hover:duration-150 text-white rounded-md flex items-center justify-center"
+                            style={{ width: '32px', height: '32px' }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (loadingStates()[product.product_id] !== 'loading') {
+                                addToCart(product.product_id, 1);
+                              }
+                            }}
+                          >
+                            {loadingStates()[product.product_id] === 'loading' ? (
+                              <div class="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+                            ) : loadingStates()[product.product_id] === 'success' ? (
+                              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                <path
+                                  fill-rule="evenodd"
+                                  d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                  clip-rule="evenodd"
+                                />
+                              </svg>
+                            ) : (
+                              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path
+                                  stroke-linecap="round"
+                                  stroke-linejoin="round"
+                                  stroke-width="2"
+                                  d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"
+                                />
+                              </svg>
+                            )}
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    );
+                  }}
                 </For>
               </div>
             </div>

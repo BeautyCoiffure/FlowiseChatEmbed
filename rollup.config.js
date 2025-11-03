@@ -11,7 +11,9 @@ import commonjs from '@rollup/plugin-commonjs';
 import serve from 'rollup-plugin-serve';
 import livereload from 'rollup-plugin-livereload';
 
-const isDev = process.env.NODE_ENV === 'development';
+// Détecte automatiquement le mode dev si --watch est utilisé
+const isDev = process.argv.includes('--watch') || process.env.NODE_ENV === 'development';
+console.log('🔧 Mode développement:', isDev);
 
 const extensions = ['.ts', '.tsx'];
 
@@ -19,22 +21,27 @@ const indexConfig = {
   context: 'this',
   plugins: [
     // Résolution des modules
-    resolve({ 
-      extensions, 
+    resolve({
+      extensions,
       browser: true,
-      preferBuiltins: false 
+      preferBuiltins: false,
     }),
     commonjs(),
     json(),
-    
+
+    // TypeScript Paths d'abord
+    typescriptPaths({
+      preserveExtensions: true,
+      absolute: false,
+    }),
+
     // TypeScript
     typescript({
       tsconfig: './tsconfig.json',
-      declaration: true,
-      declarationDir: './dist'
+      declaration: !isDev, // Désactiver les déclarations en mode dev pour plus de rapidité
+      declarationDir: !isDev ? './dist' : undefined,
     }),
-    typescriptPaths({ preserveExtensions: true }),
-    
+
     // Babel pour la transpilation
     babel({
       babelHelpers: 'bundled',
@@ -42,7 +49,7 @@ const indexConfig = {
       presets: ['solid', '@babel/preset-typescript'],
       extensions,
     }),
-    
+
     // CSS avec Tailwind
     postcss({
       plugins: [autoprefixer(), tailwindcss()],
@@ -52,31 +59,22 @@ const indexConfig = {
       minimize: !isDev,
       inject: false,
     }),
-    
+
     // Minification seulement en production
-    ...(isDev ? [] : [
-      terser({ 
-        output: { comments: false },
-        compress: {
-          drop_console: true,
-          drop_debugger: true
-        }
-      })
-    ]),
-    
-    // Serveur de développement
     ...(isDev
-      ? [
-          serve({
-            open: true,
-            verbose: true,
-            contentBase: ['dist', 'public'],
-            host: 'localhost',
-            port: 5678,
+      ? []
+      : [
+          terser({
+            output: { comments: false },
+            compress: {
+              drop_console: true,
+              drop_debugger: true,
+            },
           }),
-          livereload({ watch: 'dist' }),
-        ]
-      : []),
+        ]),
+
+    // Live reload seulement en dev (serveur lancé séparément)
+    ...(isDev ? [livereload({ watch: 'dist' })] : []),
   ],
 };
 
@@ -87,6 +85,7 @@ const configs = [
     output: {
       file: 'dist/web.js',
       format: 'es',
+      sourcemap: isDev,
     },
   },
   {
@@ -96,6 +95,7 @@ const configs = [
       file: 'dist/web.umd.js',
       format: 'umd',
       name: 'FlowiseEmbed',
+      sourcemap: isDev,
     },
   },
 ];

@@ -6,7 +6,7 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "dev": "rollup --watch --config rollup.config.js",
+    "dev": "concurrently \"rollup --watch --config rollup.config.js\" \"node serve.js\"",
     "serve": "node serve.js",
     "build": "rollup --config rollup.config.js",
     "lint": "eslint \"src/**/*.ts*\"",

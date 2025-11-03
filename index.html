@@ -7,9 +7,34 @@
 </head>
 
 <body>
+    <!-- Simulation de l'environnement PrestaShop -->
+    <script>
+        // Simuler l'objet PrestaShop global
+        window.prestashop = {
+            currency: {
+                iso_code: 'EUR',
+                sign: '€',
+                name: 'Euro'
+            },
+            customer: {
+                is_pro: false, // Changez en true pour tester le mode professionnel
+                logged: true
+            },
+            static_token: 'fake-csrf-token-for-testing',
+            emit: function(event, data) {
+                console.log('PrestaShop Event:', event, data);
+            }
+        };
+
+        // Simuler le dataLayer pour Google Analytics
+        window.dataLayer = window.dataLayer || [];
+        
+        console.log('PrestaShop environment simulated:', window.prestashop);
+    </script>
+
     <script type="module">
-        // import Chatbot from './dist/web.js';
-        import Chatbot from 'https://cdn.jsdelivr.net/gh/BeautyCoiffure/FlowiseChatEmbed@v3.1.0-beautycoiffure/dist/web.js';
+        import Chatbot from './dist/web.js';
+        //import Chatbot from 'https://cdn.jsdelivr.net/gh/BeautyCoiffure/FlowiseChatEmbed@v3.1.0-beautycoiffure/dist/web.js';
         Chatbot.initFull({
             chatflowid: "ec0c71dd-2124-4982-b039-685086385efb",
             apiHost: "https://cloud.flowiseai.com",
@@ -18,6 +43,8 @@
                     email: "antoine.beautycoiffure@gmail.com",
                     fullName: "Antoine Picard",
                     pageUrl: "https://www.beautycoiffure.com/absolut-repair-molecular-serie-expert-l-oreal-professionnel/127045-huile-bi-phase-reparatrice-absolut-repair-molecular-l-oreal-professionnel-30ml.html",
+                    isPro: false,
+                    customerId: "1969549",
                 }
             },
             theme: {
