@@ -330,15 +330,17 @@ export const BotBubble = (props: Props) => {
 
                   extractedProducts.push({
                     pageContent: item.pageContent || item.content || '',
-                    price_pro: parseFloat(item.price_pro || item.price || 0),
-                    // Utiliser normal_price_ttc comme prix de base (prix sans réduction)
-                    price: parseFloat(item.normal_price_ttc || item.price || 0),
+                    // Prix pro = toujours price_pro
+                    price_pro: parseFloat(item.price_pro || 0),
+                    // Prix TTC standard = normal_price_ttc (prix sans réduction)
+                    price: item.normal_price_ttc ? parseFloat(item.normal_price_ttc) : parseFloat(item.price || 0),
                     name: item.name || '',
                     url: item.url || '',
                     images_url: Array.isArray(item.images_url) ? item.images_url : [item.images_url || ''],
                     product_id: item.product_id || item.productId || 0,
-                    // Prix réduit TTC depuis Flowise
+                    // Prix réduit TTC = price_ttc (prix avec réduction)
                     reduced_price: hasPromotion && item.price_ttc ? parseFloat(item.price_ttc) : undefined,
+                    // Prix réduit pro = reduced_price_pro
                     reduced_price_pro: hasPromotion && item.reduced_price_pro ? parseFloat(item.reduced_price_pro) : undefined,
                     has_promo: hasPromotion,
                     discount_percent: item.discount_percent ? parseInt(item.discount_percent) : undefined,
@@ -383,30 +385,39 @@ export const BotBubble = (props: Props) => {
 
                   extractedProducts.push({
                     pageContent: item.pageContent || item.content || '',
-                    price_pro: parseFloat(item.price_pro || item.price || 0),
-                    // Utiliser normal_price_ttc comme prix de base (prix sans réduction)
-                    price: parseFloat(item.normal_price_ttc || item.price || 0),
+                    // Prix pro = toujours price_pro
+                    price_pro: parseFloat(item.price_pro || 0),
+                    // Prix TTC standard = normal_price_ttc (prix sans réduction)
+                    price: item.normal_price_ttc ? parseFloat(item.normal_price_ttc) : parseFloat(item.price || 0),
                     name: item.name || '',
                     url: item.url || '',
                     images_url: Array.isArray(item.images_url) ? item.images_url : [item.images_url || ''],
                     product_id: item.product_id || item.productId || 0,
-                    // Prix réduit TTC depuis Flowise
+                    // Prix réduit TTC = price_ttc (prix avec réduction)
                     reduced_price: hasPromotion && item.price_ttc ? parseFloat(item.price_ttc) : undefined,
+                    // Prix réduit pro = reduced_price_pro
                     reduced_price_pro: hasPromotion && item.reduced_price_pro ? parseFloat(item.reduced_price_pro) : undefined,
                     has_promo: hasPromotion,
                     discount_percent: item.discount_percent ? parseInt(item.discount_percent) : undefined,
                   });
                 }
               });
-            } else if (data && typeof data === 'object' && data.product_id && data.name) {
+            } else if (data && typeof data === 'object' && (data.product_id || data.productId) && data.name) {
+              // Détection de la promotion
+              const hasPromotion = data.has_promo === true || data.has_promo === 1 || data.has_promo === '1';
+
               extractedProducts.push({
-                pageContent: data.pageContent || '',
-                price_pro: data.price_pro || data.price || 0,
-                price: data.price || 0,
+                pageContent: data.pageContent || data.content || '',
+                price_pro: parseFloat(data.price_pro || 0),
+                price: data.normal_price_ttc ? parseFloat(data.normal_price_ttc) : parseFloat(data.price || 0),
                 name: data.name || '',
                 url: data.url || '',
                 images_url: Array.isArray(data.images_url) ? data.images_url : [data.images_url || ''],
-                product_id: data.product_id || 0,
+                product_id: data.product_id || data.productId || 0,
+                reduced_price: hasPromotion && data.price_ttc ? parseFloat(data.price_ttc) : undefined,
+                reduced_price_pro: hasPromotion && data.reduced_price_pro ? parseFloat(data.reduced_price_pro) : undefined,
+                has_promo: hasPromotion,
+                discount_percent: data.discount_percent ? parseInt(data.discount_percent) : undefined,
               });
             }
           } catch (error) {
@@ -433,27 +444,41 @@ export const BotBubble = (props: Props) => {
 
               if (Array.isArray(data)) {
                 data.forEach((item) => {
-                  if (item && typeof item === 'object' && item.product_id && item.name) {
+                  if (item && typeof item === 'object' && (item.product_id || item.productId) && item.name) {
+                    // Détection de la promotion
+                    const hasPromotion = item.has_promo === true || item.has_promo === 1 || item.has_promo === '1';
+
                     extractedProducts.push({
-                      pageContent: item.pageContent || '',
-                      price_pro: item.price_pro || item.price || 0,
-                      price: item.price || 0,
+                      pageContent: item.pageContent || item.content || '',
+                      price_pro: parseFloat(item.price_pro || 0),
+                      price: item.normal_price_ttc ? parseFloat(item.normal_price_ttc) : parseFloat(item.price || 0),
                       name: item.name || '',
                       url: item.url || '',
                       images_url: Array.isArray(item.images_url) ? item.images_url : [item.images_url || ''],
-                      product_id: item.product_id || 0,
+                      product_id: item.product_id || item.productId || 0,
+                      reduced_price: hasPromotion && item.price_ttc ? parseFloat(item.price_ttc) : undefined,
+                      reduced_price_pro: hasPromotion && item.reduced_price_pro ? parseFloat(item.reduced_price_pro) : undefined,
+                      has_promo: hasPromotion,
+                      discount_percent: item.discount_percent ? parseInt(item.discount_percent) : undefined,
                     });
                   }
                 });
-              } else if (data && typeof data === 'object' && data.product_id && data.name) {
+              } else if (data && typeof data === 'object' && (data.product_id || data.productId) && data.name) {
+                // Détection de la promotion
+                const hasPromotion = data.has_promo === true || data.has_promo === 1 || data.has_promo === '1';
+
                 extractedProducts.push({
-                  pageContent: data.pageContent || '',
-                  price_pro: data.price_pro || data.price || 0,
-                  price: data.price || 0,
+                  pageContent: data.pageContent || data.content || '',
+                  price_pro: parseFloat(data.price_pro || 0),
+                  price: data.normal_price_ttc ? parseFloat(data.normal_price_ttc) : parseFloat(data.price || 0),
                   name: data.name || '',
                   url: data.url || '',
                   images_url: Array.isArray(data.images_url) ? data.images_url : [data.images_url || ''],
-                  product_id: data.product_id || 0,
+                  product_id: data.product_id || data.productId || 0,
+                  reduced_price: hasPromotion && data.price_ttc ? parseFloat(data.price_ttc) : undefined,
+                  reduced_price_pro: hasPromotion && data.reduced_price_pro ? parseFloat(data.reduced_price_pro) : undefined,
+                  has_promo: hasPromotion,
+                  discount_percent: data.discount_percent ? parseInt(data.discount_percent) : undefined,
                 });
               }
             } catch (error) {
@@ -567,30 +592,39 @@ export const BotBubble = (props: Props) => {
 
                   extractedProducts.push({
                     pageContent: item.pageContent || item.content || '',
-                    price_pro: parseFloat(item.price_pro || item.price || 0),
-                    // Utiliser normal_price_ttc comme prix de base (prix sans réduction)
-                    price: parseFloat(item.normal_price_ttc || item.price || 0),
+                    // Prix pro = toujours price_pro
+                    price_pro: parseFloat(item.price_pro || 0),
+                    // Prix TTC standard = normal_price_ttc (prix sans réduction)
+                    price: item.normal_price_ttc ? parseFloat(item.normal_price_ttc) : parseFloat(item.price || 0),
                     name: item.name || '',
                     url: item.url || '',
                     images_url: Array.isArray(item.images_url) ? item.images_url : [item.images_url || ''],
                     product_id: item.product_id || item.productId || 0,
-                    // Prix réduit TTC depuis Flowise
+                    // Prix réduit TTC = price_ttc (prix avec réduction)
                     reduced_price: hasPromotion && item.price_ttc ? parseFloat(item.price_ttc) : undefined,
+                    // Prix réduit pro = reduced_price_pro
                     reduced_price_pro: hasPromotion && item.reduced_price_pro ? parseFloat(item.reduced_price_pro) : undefined,
                     has_promo: hasPromotion,
                     discount_percent: item.discount_percent ? parseInt(item.discount_percent) : undefined,
                   });
                 }
               });
-            } else if (data && typeof data === 'object' && data.product_id && data.name) {
+            } else if (data && typeof data === 'object' && (data.product_id || data.productId) && data.name) {
+              // Détection de la promotion
+              const hasPromotion = data.has_promo === true || data.has_promo === 1 || data.has_promo === '1';
+
               extractedProducts.push({
-                pageContent: data.pageContent || '',
-                price_pro: data.price_pro || data.price || 0,
-                price: data.price || 0,
+                pageContent: data.pageContent || data.content || '',
+                price_pro: parseFloat(data.price_pro || 0),
+                price: data.normal_price_ttc ? parseFloat(data.normal_price_ttc) : parseFloat(data.price || 0),
                 name: data.name || '',
                 url: data.url || '',
                 images_url: Array.isArray(data.images_url) ? data.images_url : [data.images_url || ''],
-                product_id: data.product_id || 0,
+                product_id: data.product_id || data.productId || 0,
+                reduced_price: hasPromotion && data.price_ttc ? parseFloat(data.price_ttc) : undefined,
+                reduced_price_pro: hasPromotion && data.reduced_price_pro ? parseFloat(data.reduced_price_pro) : undefined,
+                has_promo: hasPromotion,
+                discount_percent: data.discount_percent ? parseInt(data.discount_percent) : undefined,
               });
             }
           } catch (error) {
@@ -873,10 +907,16 @@ export const BotBubble = (props: Props) => {
                     const isPro = (window as any).prestashop?.customer?.is_pro;
                     const hasPromo = product.has_promo === true;
 
-                    // Prix à afficher (toujours utiliser les prix TTC depuis Flowise)
-                    const currentPrice = hasPromo ? product.reduced_price || product.price : product.price;
+                    // Prix à afficher selon le type de client (standard ou pro)
+                    const currentPrice = hasPromo
+                      ? isPro
+                        ? product.reduced_price_pro || product.price_pro
+                        : product.reduced_price || product.price
+                      : isPro
+                        ? product.price_pro
+                        : product.price;
 
-                    const originalPrice = hasPromo ? product.price : null;
+                    const originalPrice = hasPromo ? (isPro ? product.price_pro : product.price) : null;
 
                     // Debug pour vérifier les valeurs
                     console.log('🛍️ Product Display:', {
@@ -921,9 +961,9 @@ export const BotBubble = (props: Props) => {
                         <div class="flex justify-between items-center mt-2">
                           <p class="font-semibold text-sm" style={{ color: hasPromo && originalPrice ? '#e71e62' : 'inherit' }}>
                             {hasPromo && originalPrice && (
-                              <span class="text-xs text-gray-500 line-through block">{formatPrice(originalPrice, false)}</span>
+                              <span class="text-xs text-gray-500 line-through block">{formatPrice(originalPrice, isPro)}</span>
                             )}
-                            {formatPrice(currentPrice, false)}
+                            {formatPrice(currentPrice, isPro)}
                           </p>
                           <button
                             class="p-2 bg-black hover:bg-[#e71e62] hover:transition-colors hover:duration-150 text-white rounded-md flex items-center justify-center"
