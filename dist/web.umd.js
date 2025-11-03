@@ -22375,9 +22375,9 @@ ${body}</tbody>
     _tmpl$3$7 = /*#__PURE__*/template(`<span class="prose">`),
     _tmpl$4$4 = /*#__PURE__*/template(`<div><div class="flex flex-row justify-start mb-2 items-start host-container"><div class="flex flex-col w-full justify-start"><div class="flex flex-col justify-start"></div></div><div></div><div>`),
     _tmpl$5$3 = /*#__PURE__*/template(`<div class="px-4 py-2 ml-2 scrollbar max-w-full prose relative"><div class="relative"><div class="overflow-x-auto products-container" style="scroll-behavior:smooth;"><div class="flex space-x-4 pb-4 w-max">`),
-    _tmpl$6$3 = /*#__PURE__*/template(`<div class="flex-shrink-0 w-36 sm:w-40 md:w-48 border rounded-lg p-2 hover:border-[#e71e62] cursor-pointer flex flex-col justify-between"><div class="relative"><img class="w-full h-auto object-cover mb-2 rounded"><h5 class="font-bold text-sm line-clamp-2"></h5></div><div class="flex justify-between items-center mt-2"><p class="font-semibold text-sm"></p><button class="p-2 bg-black hover:bg-[#e71e62] hover:transition-colors hover:duration-150 text-white rounded-md flex items-center justify-center">`),
+    _tmpl$6$3 = /*#__PURE__*/template(`<div class="flex-shrink-0 w-36 sm:w-40 md:w-48 border rounded-lg p-2 hover:border-[#e71e62] cursor-pointer flex flex-col justify-between"><div class="relative"><img class="w-full h-auto object-cover mb-2 rounded"><h5 class="font-bold text-sm line-clamp-2"></h5></div><div class="flex justify-between items-center mt-2"><div class="flex flex-col"><span class="text-sm"></span></div><button class="p-2 bg-black hover:bg-[#e71e62] hover:transition-colors hover:duration-150 text-white rounded-md flex items-center justify-center">`),
     _tmpl$7$3 = /*#__PURE__*/template(`<div class="absolute top-1 right-1 bg-[#e71e62] text-white text-xs font-bold px-2 py-1 rounded shadow-md z-10">-<!>%`),
-    _tmpl$8$2 = /*#__PURE__*/template(`<span class="text-xs text-gray-500 line-through block">`),
+    _tmpl$8$2 = /*#__PURE__*/template(`<span class="text-xs text-gray-500 line-through">`),
     _tmpl$9$2 = /*#__PURE__*/template(`<div class="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white">`),
     _tmpl$10$2 = /*#__PURE__*/template(`<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd">`),
     _tmpl$11$2 = /*#__PURE__*/template(`<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z">`),
@@ -23198,20 +23198,6 @@ ${body}</tbody>
               // Prix à afficher selon le type de client (standard ou pro)
               const currentPrice = hasPromo ? isPro ? product.reduced_price_pro || product.price_pro : product.reduced_price || product.price : isPro ? product.price_pro : product.price;
               const originalPrice = hasPromo ? isPro ? product.price_pro : product.price : null;
-              // Debug pour vérifier les valeurs
-              console.log('🛍️ Product Display:', {
-                name: product.name,
-                isPro,
-                hasPromo,
-                has_promo: product.has_promo,
-                price: product.price,
-                price_pro: product.price_pro,
-                reduced_price: product.reduced_price,
-                reduced_price_pro: product.reduced_price_pro,
-                discount_percent: product.discount_percent,
-                currentPrice,
-                originalPrice
-              });
               return (() => {
                 const _el$16 = _tmpl$6$3(),
                   _el$17 = _el$16.firstChild,
@@ -23219,17 +23205,18 @@ ${body}</tbody>
                   _el$19 = _el$18.nextSibling,
                   _el$20 = _el$17.nextSibling,
                   _el$21 = _el$20.firstChild,
-                  _el$22 = _el$21.nextSibling;
+                  _el$22 = _el$21.firstChild,
+                  _el$23 = _el$21.nextSibling;
                 _el$16.$$click = () => window.open(product.url, '_blank');
                 insert(_el$17, (() => {
                   const _c$9 = createMemo(() => !!(hasPromo && product.discount_percent));
                   return () => _c$9() && (() => {
-                    const _el$23 = _tmpl$7$3(),
-                      _el$24 = _el$23.firstChild,
-                      _el$26 = _el$24.nextSibling;
-                      _el$26.nextSibling;
-                    insert(_el$23, () => product.discount_percent, _el$26);
-                    return _el$23;
+                    const _el$24 = _tmpl$7$3(),
+                      _el$25 = _el$24.firstChild,
+                      _el$27 = _el$25.nextSibling;
+                      _el$27.nextSibling;
+                    insert(_el$24, () => product.discount_percent, _el$27);
+                    return _el$24;
                   })();
                 })(), _el$18);
                 _el$18.addEventListener("error", e => {
@@ -23239,22 +23226,23 @@ ${body}</tbody>
                   }
                 });
                 insert(_el$19, () => product.name);
-                (hasPromo && originalPrice ? '#e71e62' : 'inherit') != null ? _el$21.style.setProperty("color", hasPromo && originalPrice ? '#e71e62' : 'inherit') : _el$21.style.removeProperty("color");
                 insert(_el$21, hasPromo && originalPrice && (() => {
-                  const _el$27 = _tmpl$8$2();
-                  insert(_el$27, () => formatPrice(originalPrice, isPro));
-                  return _el$27;
-                })(), null);
-                insert(_el$21, () => formatPrice(currentPrice, isPro), null);
-                _el$22.$$click = e => {
+                  const _el$28 = _tmpl$8$2();
+                  insert(_el$28, () => formatPrice(originalPrice, isPro));
+                  return _el$28;
+                })(), _el$22);
+                (hasPromo && originalPrice ? '#e71e62' : 'inherit') != null ? _el$22.style.setProperty("color", hasPromo && originalPrice ? '#e71e62' : 'inherit') : _el$22.style.removeProperty("color");
+                (hasPromo && originalPrice ? '600' : '500') != null ? _el$22.style.setProperty("font-weight", hasPromo && originalPrice ? '600' : '500') : _el$22.style.removeProperty("font-weight");
+                insert(_el$22, () => formatPrice(currentPrice, isPro));
+                _el$23.$$click = e => {
                   e.stopPropagation();
                   if (loadingStates()[product.product_id] !== 'loading') {
                     addToCart(product.product_id, 1);
                   }
                 };
-                _el$22.style.setProperty("width", "32px");
-                _el$22.style.setProperty("height", "32px");
-                insert(_el$22, (() => {
+                _el$23.style.setProperty("width", "32px");
+                _el$23.style.setProperty("height", "32px");
+                insert(_el$23, (() => {
                   const _c$10 = createMemo(() => loadingStates()[product.product_id] === 'loading');
                   return () => _c$10() ? _tmpl$9$2() : (() => {
                     const _c$11 = createMemo(() => loadingStates()[product.product_id] === 'success');
@@ -23294,25 +23282,25 @@ ${body}</tbody>
       insert(_el$9, (() => {
         const _c$2 = createMemo(() => !!(props.showAgentMessages && props.message.agentFlowExecutedData && Array.isArray(props.message.agentFlowExecutedData) && props.message.agentFlowExecutedData.length > 0));
         return () => _c$2() && (() => {
-          const _el$31 = _tmpl$12$2();
-          insert(_el$31, createComponent(WorkflowTreeView, {
+          const _el$32 = _tmpl$12$2();
+          insert(_el$32, createComponent(WorkflowTreeView, {
             get workflowData() {
               return props.message.agentFlowExecutedData;
             },
             indentationLevel: 24
           }));
-          return _el$31;
+          return _el$32;
         })();
       })(), null);
       insert(_el$9, (() => {
         const _c$3 = createMemo(() => !!(props.showAgentMessages && props.message.agentReasoning));
         return () => _c$3() && (() => {
-          const _el$32 = _tmpl$13$2(),
-            _el$33 = _el$32.firstChild;
-            _el$33.nextSibling;
+          const _el$33 = _tmpl$13$2(),
+            _el$34 = _el$33.firstChild;
+            _el$34.nextSibling;
           const _ref$ = botDetailsEl;
-          typeof _ref$ === "function" ? use(_ref$, _el$32) : botDetailsEl = _el$32;
-          insert(_el$32, createComponent(For, {
+          typeof _ref$ === "function" ? use(_ref$, _el$33) : botDetailsEl = _el$33;
+          insert(_el$33, createComponent(For, {
             get each() {
               return props.message.agentReasoning;
             },
@@ -23352,14 +23340,14 @@ ${body}</tbody>
               });
             }
           }), null);
-          return _el$32;
+          return _el$33;
         })();
       })(), null);
       insert(_el$9, (() => {
         const _c$4 = createMemo(() => !!(props.message.artifacts && props.message.artifacts.length > 0));
         return () => _c$4() && (() => {
-          const _el$35 = _tmpl$14$2();
-          insert(_el$35, createComponent(For, {
+          const _el$36 = _tmpl$14$2();
+          insert(_el$36, createComponent(For, {
             get each() {
               return props.message.artifacts;
             },
@@ -23367,36 +23355,36 @@ ${body}</tbody>
               return item !== null ? createMemo(() => renderArtifacts(item)) : null;
             }
           }));
-          return _el$35;
+          return _el$36;
         })();
       })(), null);
       insert(_el$9, (() => {
         const _c$5 = createMemo(() => !!props.message.message);
         return () => _c$5() && (() => {
-          const _el$36 = _tmpl$15$2();
-          use(setBotMessageRef, _el$36);
-          _el$36.style.setProperty("border-radius", "6px");
+          const _el$37 = _tmpl$15$2();
+          use(setBotMessageRef, _el$37);
+          _el$37.style.setProperty("border-radius", "6px");
           createRenderEffect(_p$ => {
             const _v$7 = props.backgroundColor ?? defaultBackgroundColor$3,
               _v$8 = props.textColor ?? defaultTextColor$4,
               _v$9 = props.fontSize ? `${props.fontSize}px` : `${defaultFontSize$1}px`;
-            _v$7 !== _p$._v$7 && ((_p$._v$7 = _v$7) != null ? _el$36.style.setProperty("background-color", _v$7) : _el$36.style.removeProperty("background-color"));
-            _v$8 !== _p$._v$8 && ((_p$._v$8 = _v$8) != null ? _el$36.style.setProperty("color", _v$8) : _el$36.style.removeProperty("color"));
-            _v$9 !== _p$._v$9 && ((_p$._v$9 = _v$9) != null ? _el$36.style.setProperty("font-size", _v$9) : _el$36.style.removeProperty("font-size"));
+            _v$7 !== _p$._v$7 && ((_p$._v$7 = _v$7) != null ? _el$37.style.setProperty("background-color", _v$7) : _el$37.style.removeProperty("background-color"));
+            _v$8 !== _p$._v$8 && ((_p$._v$8 = _v$8) != null ? _el$37.style.setProperty("color", _v$8) : _el$37.style.removeProperty("color"));
+            _v$9 !== _p$._v$9 && ((_p$._v$9 = _v$9) != null ? _el$37.style.setProperty("font-size", _v$9) : _el$37.style.removeProperty("font-size"));
             return _p$;
           }, {
             _v$7: undefined,
             _v$8: undefined,
             _v$9: undefined
           });
-          return _el$36;
+          return _el$37;
         })();
       })(), null);
       insert(_el$9, (() => {
         const _c$6 = createMemo(() => !!props.message.action);
         return () => _c$6() && (() => {
-          const _el$37 = _tmpl$16$2();
-          insert(_el$37, createComponent(For, {
+          const _el$38 = _tmpl$16$2();
+          insert(_el$38, createComponent(For, {
             get each() {
               return props.message.action.elements || [];
             },
@@ -23404,33 +23392,33 @@ ${body}</tbody>
               return createMemo((() => {
                 const _c$12 = createMemo(() => !!(action.type === 'approve-button' && action.label === 'Yes' || action.type === 'agentflowv2-approve-button'));
                 return () => _c$12() ? (() => {
-                  const _el$38 = _tmpl$17$2(),
-                    _el$39 = _el$38.firstChild;
-                  _el$38.$$click = () => props.handleActionClick(action, props.message.action);
-                  insert(_el$38, createComponent(TickIcon, {}), _el$39);
-                  insert(_el$38, () => action.label, null);
-                  return _el$38;
+                  const _el$39 = _tmpl$17$2(),
+                    _el$40 = _el$39.firstChild;
+                  _el$39.$$click = () => props.handleActionClick(action, props.message.action);
+                  insert(_el$39, createComponent(TickIcon, {}), _el$40);
+                  insert(_el$39, () => action.label, null);
+                  return _el$39;
                 })() : (() => {
                   const _c$13 = createMemo(() => !!(action.type === 'reject-button' && action.label === 'No' || action.type === 'agentflowv2-reject-button'));
                   return () => _c$13() ? (() => {
-                    const _el$40 = _tmpl$18$2(),
-                      _el$41 = _el$40.firstChild;
-                    _el$40.$$click = () => props.handleActionClick(action, props.message.action);
-                    insert(_el$40, createComponent(XIcon, {
+                    const _el$41 = _tmpl$18$2(),
+                      _el$42 = _el$41.firstChild;
+                    _el$41.$$click = () => props.handleActionClick(action, props.message.action);
+                    insert(_el$41, createComponent(XIcon, {
                       isCurrentColor: true
-                    }), _el$41);
-                    insert(_el$40, () => action.label, null);
-                    return _el$40;
+                    }), _el$42);
+                    insert(_el$41, () => action.label, null);
+                    return _el$41;
                   })() : (() => {
-                    const _el$42 = _tmpl$19$2();
-                    insert(_el$42, () => action.label);
-                    return _el$42;
+                    const _el$43 = _tmpl$19$2();
+                    insert(_el$43, () => action.label);
+                    return _el$43;
                   })();
                 })();
               })());
             }
           }));
-          return _el$37;
+          return _el$38;
         })();
       })(), null);
       insert(_el$10, (() => {
@@ -23440,17 +23428,17 @@ ${body}</tbody>
             return props.sourceDocsTitle;
           },
           get children() {
-            const _el$43 = _tmpl$20$2();
-            insert(_el$43, () => props.sourceDocsTitle);
-            return _el$43;
+            const _el$44 = _tmpl$20$2();
+            insert(_el$44, () => props.sourceDocsTitle);
+            return _el$44;
           }
         }), (() => {
-          const _el$44 = _tmpl$12$2();
-          _el$44.style.setProperty("display", "flex");
-          _el$44.style.setProperty("flex-direction", "row");
-          _el$44.style.setProperty("width", "100%");
-          _el$44.style.setProperty("flex-wrap", "wrap");
-          insert(_el$44, createComponent(For, {
+          const _el$45 = _tmpl$12$2();
+          _el$45.style.setProperty("display", "flex");
+          _el$45.style.setProperty("flex-direction", "row");
+          _el$45.style.setProperty("width", "100%");
+          _el$45.style.setProperty("flex-wrap", "wrap");
+          insert(_el$45, createComponent(For, {
             get each() {
               return [...removeDuplicateURL(props.message)];
             },
@@ -23473,30 +23461,30 @@ ${body}</tbody>
               });
             }
           }));
-          return _el$44;
+          return _el$45;
         })()];
       })());
       insert(_el$11, (() => {
         const _c$8 = createMemo(() => !!(props.chatFeedbackStatus && props.message.messageId));
         return () => _c$8() && (() => {
-          const _el$45 = _tmpl$12$2();
-          insert(_el$45, createComponent(CopyToClipboardButton, {
+          const _el$46 = _tmpl$12$2();
+          insert(_el$46, createComponent(CopyToClipboardButton, {
             get feedbackColor() {
               return props.feedbackColor;
             },
             onClick: () => copyMessageToClipboard()
           }), null);
-          insert(_el$45, createComponent(Show, {
+          insert(_el$46, createComponent(Show, {
             get when() {
               return copiedMessage();
             },
             get children() {
-              const _el$46 = _tmpl$21$2();
-              createRenderEffect(() => (props.feedbackColor ?? defaultFeedbackColor) != null ? _el$46.style.setProperty("color", props.feedbackColor ?? defaultFeedbackColor) : _el$46.style.removeProperty("color"));
-              return _el$46;
+              const _el$47 = _tmpl$21$2();
+              createRenderEffect(() => (props.feedbackColor ?? defaultFeedbackColor) != null ? _el$47.style.setProperty("color", props.feedbackColor ?? defaultFeedbackColor) : _el$47.style.removeProperty("color"));
+              return _el$47;
             }
           }), null);
-          insert(_el$45, (() => {
+          insert(_el$46, (() => {
             const _c$14 = createMemo(() => !!(rating() === '' || rating() === 'THUMBS_UP'));
             return () => _c$14() ? createComponent(ThumbsUpButton, {
               get feedbackColor() {
@@ -23511,7 +23499,7 @@ ${body}</tbody>
               onClick: onThumbsUpClick
             }) : null;
           })(), null);
-          insert(_el$45, (() => {
+          insert(_el$46, (() => {
             const _c$15 = createMemo(() => !!(rating() === '' || rating() === 'THUMBS_DOWN'));
             return () => _c$15() ? createComponent(ThumbsDownButton, {
               get feedbackColor() {
@@ -23526,18 +23514,18 @@ ${body}</tbody>
               onClick: onThumbsDownClick
             }) : null;
           })(), null);
-          insert(_el$45, createComponent(Show, {
+          insert(_el$46, createComponent(Show, {
             get when() {
               return props.message.dateTime;
             },
             get children() {
-              const _el$47 = _tmpl$22$2();
-              insert(_el$47, () => formatDateTime(props.message.dateTime, props?.dateTimeToggle?.date, props?.dateTimeToggle?.time));
-              return _el$47;
+              const _el$48 = _tmpl$22$2();
+              insert(_el$48, () => formatDateTime(props.message.dateTime, props?.dateTimeToggle?.date, props?.dateTimeToggle?.time));
+              return _el$48;
             }
           }), null);
-          createRenderEffect(() => className(_el$45, `flex items-center px-2 pb-2 ${props.showAvatar ? 'ml-10' : ''}`));
-          return _el$45;
+          createRenderEffect(() => className(_el$46, `flex items-center px-2 pb-2 ${props.showAvatar ? 'ml-10' : ''}`));
+          return _el$46;
         })();
       })());
       return _el$6;

@@ -918,21 +918,6 @@ export const BotBubble = (props: Props) => {
 
                     const originalPrice = hasPromo ? (isPro ? product.price_pro : product.price) : null;
 
-                    // Debug pour vérifier les valeurs
-                    console.log('🛍️ Product Display:', {
-                      name: product.name,
-                      isPro,
-                      hasPromo,
-                      has_promo: product.has_promo,
-                      price: product.price,
-                      price_pro: product.price_pro,
-                      reduced_price: product.reduced_price,
-                      reduced_price_pro: product.reduced_price_pro,
-                      discount_percent: product.discount_percent,
-                      currentPrice,
-                      originalPrice,
-                    });
-
                     return (
                       <div
                         class="flex-shrink-0 w-36 sm:w-40 md:w-48 border rounded-lg p-2 hover:border-[#e71e62] cursor-pointer flex flex-col justify-between"
@@ -959,12 +944,18 @@ export const BotBubble = (props: Props) => {
                           <h5 class="font-bold text-sm line-clamp-2">{product.name}</h5>
                         </div>
                         <div class="flex justify-between items-center mt-2">
-                          <p class="font-semibold text-sm" style={{ color: hasPromo && originalPrice ? '#e71e62' : 'inherit' }}>
-                            {hasPromo && originalPrice && (
-                              <span class="text-xs text-gray-500 line-through block">{formatPrice(originalPrice, isPro)}</span>
-                            )}
-                            {formatPrice(currentPrice, isPro)}
-                          </p>
+                          <div class="flex flex-col">
+                            {hasPromo && originalPrice && <span class="text-xs text-gray-500 line-through">{formatPrice(originalPrice, isPro)}</span>}
+                            <span
+                              class="text-sm"
+                              style={{
+                                color: hasPromo && originalPrice ? '#e71e62' : 'inherit',
+                                'font-weight': hasPromo && originalPrice ? '600' : '500',
+                              }}
+                            >
+                              {formatPrice(currentPrice, isPro)}
+                            </span>
+                          </div>
                           <button
                             class="p-2 bg-black hover:bg-[#e71e62] hover:transition-colors hover:duration-150 text-white rounded-md flex items-center justify-center"
                             style={{ width: '32px', height: '32px' }}
