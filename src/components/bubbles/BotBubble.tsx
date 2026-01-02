@@ -831,7 +831,7 @@ export const BotBubble = (props: Props) => {
                   {
                     name: product.name,
                     id: product.product_id.toString(),
-                    price: (window as any).prestashop?.customer?.is_pro ? product.price_pro : product.price,
+                    price: Boolean((window as any).prestashop?.customer?.is_pro) ? product.price_pro : product.price,
                     quantity: quantity,
                   },
                 ],
@@ -847,24 +847,27 @@ export const BotBubble = (props: Props) => {
         }
 
         // @ts-ignore
-        window.prestashop.emit('updateCart', {
-          reason: {
-            idProduct: data.id_product,
-            idProductAttribute: data.id_product_attribute,
-            idCustomization: data.id_customization,
-            linkAction: 'add-to-cart',
-            cart: data.cart,
-          },
-          resp: data,
-        });
+        if (typeof (window as any).prestashop !== 'undefined' && typeof (window as any).prestashop.emit === 'function') {
+          (window as any).prestashop.emit('updateCart', {
+            reason: {
+              idProduct: data.id_product,
+              idProductAttribute: data.id_product_attribute,
+              idCustomization: data.id_customization,
+              linkAction: 'add-to-cart',
+              cart: data.cart,
+            },
+            resp: data,
+          });
+        }
       } else {
         const data = await response.json();
         // @ts-ignore
-
-        prestashop.emit('handleError', {
-          eventType: 'addProductToCart',
-          data,
-        });
+        if (typeof (window as any).prestashop !== 'undefined' && typeof (window as any).prestashop.emit === 'function') {
+          (window as any).prestashop.emit('handleError', {
+            eventType: 'addProductToCart',
+            data,
+          });
+        }
         console.error('Failed to add product to cart:', response.statusText);
         setLoadingStates((prev) => ({ ...prev, [productId]: 'idle' }));
       }
@@ -904,7 +907,7 @@ export const BotBubble = (props: Props) => {
               <div class="flex space-x-4 pb-4 w-max">
                 <For each={products()}>
                   {(product) => {
-                    const isPro = (window as any).prestashop?.customer?.is_pro;
+                    const isPro = Boolean((window as any).prestashop?.customer?.is_pro);
                     const hasPromo = product.has_promo === true;
 
                     // Prix à afficher selon le type de client (standard ou pro)
